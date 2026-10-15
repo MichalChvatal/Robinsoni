@@ -1,0 +1,32 @@
+
+# Used for Jupyter Notebooks
+jupyter 
+notebook
+
+# InterSystems Python Driver
+intersystems-irispython 
+
+# Used for tabular data handling
+pandas
+
+# Used for HTTP requests (particularly for FHIR queries)
+requests  
+
+## Used for easier downloading and parsing of fhir resources
+fhirpy
+
+## Used for creating and validating FHIR resources
+fhir.resources
+
+# Used for building LLM applications
+openai
+langchain[openai]
+langchain[mcp]
+langchain-text-splitters
+fastmcp
+
+python-dotenv
+
+
+## Used for reading PDFs
+pymupdf
