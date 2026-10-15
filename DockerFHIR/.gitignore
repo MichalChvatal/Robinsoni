@@ -1,0 +1,11 @@
+
+**/.ipynb_checkpoints/
+**/*.pyc
+.venv/
+**/.env
+docker-iris-fhir/fhir-sql-builder
+**/.DS_Store
+**/__pycache__/
+**/.pytest_cache/
+**/iris-main.log
+.claude
