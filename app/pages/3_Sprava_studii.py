@@ -1,18 +1,54 @@
 import json
 import os
+import time
 
 import streamlit as st
 
 from common import get_catalog, page_setup
 from trialink import sonis
+from trialink.auth import Throttle, verify_password
 from trialink.catalog import load_catalog, study_from_record, validate
 from trialink.structuring import draft_criteria
 
 P = "adm"
+# Not prefixed "adm_" so clearing the form state keeps the admin logged in; the page timeout still clears it.
+AUTH = "admauth_ok"
 page_setup("Správa studií", P)
 ss = st.session_state
 
 st.title("🗂️ Správa studií")
+
+
+@st.cache_resource
+def _throttle() -> Throttle:
+    return Throttle()
+
+
+stored_hash = os.getenv("ADMIN_PASSWORD_HASH", "")
+if not stored_hash:
+    st.error("Správa studií je vypnutá – v .env chybí ADMIN_PASSWORD_HASH (vytvoříte: python -m trialink.auth).")
+    st.stop()
+if not ss.get(AUTH):
+    wait = _throttle().locked_for()
+    if wait:
+        st.error(f"Příliš mnoho neúspěšných pokusů. Zkuste to znovu za {wait} s.")
+        st.stop()
+    with st.form("admauth_login", clear_on_submit=True):
+        pw = st.text_input("Heslo správce", type="password")
+        login = st.form_submit_button("Přihlásit")
+    if login:
+        if verify_password(pw, stored_hash):
+            _throttle().reset()
+            ss[AUTH] = True
+            st.rerun()
+        _throttle().fail()
+        time.sleep(1)
+        st.error("Nesprávné heslo.")
+    st.stop()
+if st.sidebar.button("🔒 Odhlásit správce"):
+    ss.pop(AUTH, None)
+    st.rerun()
+
 st.caption("Referenční data (bez pacientských údajů). Nové a změněné studie se ukládají do IRIS jako nová verze; "
            "předchozí verze zůstávají v historii. Kritéria navržená AI mají stav **návrh** a musí je zkontrolovat onkolog.")
 
