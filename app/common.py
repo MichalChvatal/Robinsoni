@@ -198,21 +198,19 @@ def _fmt(options: dict):
 
 def apply_profile(prefix: str, p: PatientProfile) -> None:
     """Prefill widget state from a profile (demo case or extraction)."""
-    icd = normalize_icd(p.icd10)
     ss = st.session_state
-    ss[f"{prefix}_icd"] = icd
-    ss[f"{prefix}_morpho"] = p.morphology
-    ss[f"{prefix}_histology"] = p.histology
-    ss[f"{prefix}_extent"] = p.disease_extent
-    ss[f"{prefix}_setting"] = p.setting
-    ss[f"{prefix}_lines_known"] = p.prior_palliative_lines is not None
-    ss[f"{prefix}_lines"] = p.prior_palliative_lines or 0
-    ss[f"{prefix}_her2"] = p.her2_status
-    ss[f"{prefix}_ecog"] = p.ecog
-    ss[f"{prefix}_age"] = p.age
-    ss[f"{prefix}_sex"] = p.sex
-    ss[f"{prefix}_swallow"] = {True: "ano", False: "ne"}.get(p.can_swallow)
-    ss[f"{prefix}_therapy_known"] = p.therapies is not None
+    therapy_mode = None if p.therapies is None else ("list" if p.therapies else "none")
+    values = {
+        "icd": normalize_icd(p.icd10), "morpho": p.morphology, "histology": p.histology, "extent": p.disease_extent,
+        "setting": p.setting, "lines": p.prior_palliative_lines, "her2": p.her2_status, "ecog": p.ecog, "age": p.age,
+        "sex": p.sex, "swallow": {True: "ano", False: "ne"}.get(p.can_swallow), "ther_mode": therapy_mode,
+    }
+    for name, value in values.items():
+        # Missing facts stay unset so the widget falls back to its first option "nevím / nezadáno".
+        if value is None:
+            ss.pop(f"{prefix}_{name}", None)
+        else:
+            ss[f"{prefix}_{name}"] = value
     ss[f"{prefix}_bio_init"] = biomarker_rows(p)
     ss[f"{prefix}_ther_init"] = therapy_rows(p)
     ss[f"{prefix}_conflicts"] = list(p.conflicts)
@@ -236,7 +234,9 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     icd_key, morpho_key, hist_key = f"{prefix}_icd", f"{prefix}_morpho", f"{prefix}_histology"
     codes = index.diagnosis_codes() if index else sorted(ICD_NAMES)
     current = normalize_icd(ss.get(icd_key))
-    if ss.get(icd_key) != current:
+    if current is None:
+        ss.pop(icd_key, None)
+    elif ss.get(icd_key) != current:
         ss[icd_key] = current
     if current and current not in codes:
         codes = sorted({*codes, current})
@@ -251,7 +251,7 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     if ss.get(morpho_key) and ss[morpho_key] not in allowed:
         if diagnosis and index:
             st.warning(f"Morfologie {format_morpho(ss[morpho_key])} není pro diagnózu {diagnosis_label(diagnosis)} v číselníku povolena – vyberte znovu.")
-        ss[morpho_key] = None
+        ss.pop(morpho_key, None)
     morpho = c2.selectbox(
         "Morfologie (ICD-O-3)" if not lay else "Typ nádoru podle zprávy (morfologie)", [None, *allowed], key=morpho_key,
         format_func=lambda v: UNKNOWN if v is None else format_morpho(v), disabled=not allowed,
@@ -284,15 +284,23 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
                       help=tip("rozsah"), label_visibility="collapsed")
     src("disease_extent")
 
-    st.markdown("#### 3 · Léčebná situace a předchozí léčba" if not lay else "#### 3 · Jakou léčbu máte za sebou a co vás čeká?")
-    setting = st.radio("Plánovaná léčba", _opt(SETTINGS), format_func=_fmt(SETTINGS), key=f"{prefix}_setting", horizontal=True,
+    st.markdown("#### 3 · Léčebná situace a předchozí léčba" if not lay else "#### 3 · Vaše léčba")
+    setting = st.radio("Jaká léčba je plánovaná teď?" if not lay else "Jaká léčba vás teď čeká?", _opt(SETTINGS),
+                       format_func=_fmt(SETTINGS), key=f"{prefix}_setting", horizontal=True,
                        help=tip("paliativni") if lay else None)
-    c1, c2 = st.columns([1, 2])
-    lines_known = c1.checkbox("Počet linií paliativní léčby znám", key=f"{prefix}_lines_known", help=tip("linie"))
-    lines = c2.number_input("Již podané linie léčby pokročilého onemocnění", 0, 10, key=f"{prefix}_lines", disabled=not lines_known)
-    therapy_known = st.checkbox("Dosavadní léčbu znám (i když žádná nebyla)", key=f"{prefix}_therapy_known")
-    therapies = None
-    if therapy_known:
+    c1, c2 = st.columns(2)
+    lines = c1.selectbox(
+        "Počet již podaných linií léčby pokročilého onemocnění" if not lay
+        else "Kolikrát už jste dostal(a) léčbu kvůli pokročilé (metastatické) nemoci?",
+        [None, *range(0, 11)], key=f"{prefix}_lines", help=tip("linie"),
+        format_func=lambda v: UNKNOWN if v is None else ("žádnou" if v == 0 else (f"{v}×" if lay else f"{v}. linie")))
+    therapy_modes = {"none": "Zatím žádná léčba" if lay else "Žádná předchozí léčba", "list": "Vypsat léky / režimy"}
+    therapy_mode = c2.radio(
+        "Jakou léčbu už jste podstoupil(a)?" if lay else "Předchozí systémová léčba", _opt(therapy_modes),
+        format_func=_fmt(therapy_modes), key=f"{prefix}_ther_mode",
+        help="Některé studie vyžadují nebo naopak vylučují určitou předchozí léčbu (např. FOLFOX, Kadcyla).")
+    therapies = None if therapy_mode is None else []
+    if therapy_mode == "list":
         rows = st.data_editor(ss.get(f"{prefix}_ther_init", []) or [{"lék / režim": "", "režim": None}], num_rows="dynamic",
                               key=f"{prefix}_ther_{rev}", width="stretch", column_config={
                                   "lék / režim": st.column_config.TextColumn("Lék / režim", help="Např. FOLFOX + nivolumab, Kadcyla, Enhertu"),
@@ -316,11 +324,11 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
 
     p = PatientProfile(
         icd10=diagnosis, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
-        prior_palliative_lines=int(lines) if lines_known else None, her2_status=her2,
+        prior_palliative_lines=lines, her2_status=her2,
         biomarkers=rows_to_biomarkers(bio_rows), therapies=therapies, ecog=ecog,
         age=int(age) if age is not None else None, sex=sex, can_swallow={"ano": True, "ne": False}.get(swallow),
         conflicts=list(ss.get(f"{prefix}_conflicts", [])), evidence=evidence,
     )
-    if p.conflicts:
+    if p.conflicts and not lay:
         st.warning("**Rozpory ve zdrojové zprávě:**\n" + "\n".join(f"- {c}" for c in p.conflicts))
     return p

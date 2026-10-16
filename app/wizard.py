@@ -8,6 +8,7 @@ import time
 from datetime import date
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import report_input
 from common import apply_profile, disclaimer, profile_form, render_result, reset
@@ -32,11 +33,13 @@ STEP_TITLES = {
 def _go(step: str) -> None:
     ss.setdefault("wiz_history", []).append(ss.get("wiz_step", "role"))
     ss["wiz_step"] = step
+    ss["wiz_scroll_top"] = ss.get("wiz_scroll_top", 0) + 1
 
 
 def _back() -> None:
     history = ss.get("wiz_history", [])
     ss["wiz_step"] = history.pop() if history else "role"
+    ss["wiz_scroll_top"] = ss.get("wiz_scroll_top", 0) + 1
 
 
 def _restart() -> None:
@@ -75,6 +78,14 @@ CARD_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in CARD_KEYS) + """
 """ + ", ".join(f".st-key-{k} button p strong" for k in CARD_KEYS) + """{
   display: block; font-size: 1.35rem; margin-bottom: 0.6rem;}
 </style>"""
+SEARCH_KEYS = ("wiz_search", "wiz_to_results")
+SEARCH_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in SEARCH_KEYS) + """{
+  background-color: #1c64f2; border-color: #1c64f2; color: #fff;}
+""" + ", ".join(f".st-key-{k} button:hover" for k in SEARCH_KEYS) + """{
+  background-color: #1a56db; border-color: #1a56db; color: #fff;}
+""" + ", ".join(f".st-key-{k} button:disabled" for k in SEARCH_KEYS) + """{
+  background-color: #9db8f5; border-color: #9db8f5; color: #fff;}
+</style>"""
 
 
 def _card(column, key: str, title: str, text: str, on_click, args) -> None:
@@ -92,6 +103,8 @@ def _choose_role(role: str) -> None:
 
 
 def step_role() -> None:
+    st.info("**TriaLink pomáhá najít klinické studie Masarykova onkologického ústavu, které by mohly být vhodné "
+            f"pro konkrétního pacienta.**\n\n**Co je klinická studie?** {TOOLTIPS['studie']}")
     st.markdown("### Kdo jste?")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
@@ -118,17 +131,19 @@ def step_doc_choice() -> None:
 def _load_report(prefix: str) -> None:
     """Callback: take the upload, photo or typed text, convert locally and continue to review."""
     nonce = ss.get("wiz_nonce", 0)
+    mode = ss.get(f"{prefix}_mode", "file")
     upload, photo = ss.get(f"{prefix}_upload_{nonce}"), ss.get(f"{prefix}_photo_{nonce}")
     typed = ss.get(f"{prefix}_draft", "")
     try:
-        if upload is not None:
+        if mode == "file" and upload is not None:
             text = report_input.text_from_upload(upload.name, upload.getvalue())
-        elif photo is not None:
+        elif mode == "photo" and photo is not None:
             text = report_input.text_from_upload("foto.jpg", photo.getvalue())
-        elif typed.strip():
+        elif mode == "text" and typed.strip():
             text = typed
         else:
-            raise OcrError("Vložte text zprávy, nahrajte soubor nebo pořiďte fotografii.")
+            raise OcrError({"file": "Nejprve vyberte soubor se zprávou.", "photo": "Nejprve zprávu vyfoťte.",
+                            "text": "Vložte text zprávy."}[mode])
     except OcrError as exc:
         ss["wiz_error"] = str(exc)
         return
@@ -162,14 +177,16 @@ def step_report() -> None:
     st.info("Fotografie i soubor se převádějí na text **lokálně na serveru aplikace** (nic se neukládá). "
             "V dalším kroku text zkontrolujete a odstraníte osobní údaje – teprve potom se odešle k automatickému "
             "vyhodnocení do cloudové služby OpenAI.")
-    t1, t2, t3 = st.tabs(["✍️ Vložit text", "📁 Nahrát soubor", "📷 Vyfotit zprávu"])
-    with t1:
-        st.text_area("Text zprávy", key=f"{p}_draft", height=220, max_chars=MAX_REPORT_CHARS,
-                     placeholder="Zkopírujte sem text lékařské zprávy…")
-    with t2:
+    modes = {"file": "📁 Nahrát soubor", "text": "✍️ Vložit text", "photo": "📷 Vyfotit zprávu"}
+    mode = st.radio("Jak chcete zprávu vložit?", list(modes), format_func=modes.get, key=f"{p}_mode", horizontal=True)
+    if mode == "file":
         st.file_uploader("Textový soubor (.txt) nebo fotografie / scan (JPG, PNG), max. 10 MB",
                          type=report_input.UPLOAD_TYPES, key=f"{p}_upload_{nonce}")
-    with t3:
+    elif mode == "text":
+        st.text_area("Text zprávy", key=f"{p}_draft", height=220, max_chars=MAX_REPORT_CHARS,
+                     placeholder="Zkopírujte sem text lékařské zprávy…")
+    else:
+        # Rendered only on demand – camera_input switches the camera on as soon as it is shown.
         st.camera_input("Vyfoťte zprávu tak, aby byl text ostrý a celý v záběru", key=f"{p}_photo_{nonce}")
     if ss.get("wiz_error"):
         st.error(ss.pop("wiz_error"))
@@ -221,11 +238,13 @@ def step_review() -> None:
         st.warning("Text pravděpodobně obsahuje osobní údaje: " + ", ".join(f"{k} ({n}×)" for k, n in found.items()))
         st.button("🛡️ Nahradit je značkou [ANONYMIZOVÁNO]", on_click=_mask, args=(key,), key="wiz_mask")
     else:
-        st.success("Automatická kontrola nenašla rodné číslo, telefon, e-mail ani řádky se jménem či adresou. "
-                   "Jména v textu ale nerozpozná – zkontrolujte jej prosím sami.")
+        st.success("Automatická kontrola nenašla žádné zjevné osobní údaje. **Přesto text prosím projděte a ověřte, že "
+                   "neobsahuje žádné citlivé údaje** – jméno, rodné číslo, datum narození, adresu, telefon, e-mail ani číslo "
+                   "pojištěnce. Jména v běžném textu automatická kontrola nepozná.")
     ok = st.checkbox("Zkontroloval(a) jsem text a neobsahuje jméno ani jiné identifikační údaje. "
                      "Souhlasím s jeho odesláním do cloudové služby OpenAI k vyhodnocení.", key=f"{p}_report_ok")
     ready = ok and bool(text.strip())
+    st.markdown(SEARCH_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     if c1.button("🔍 Zobrazit detail", disabled=not ready, key="wiz_to_detail", width="stretch"):
         _extract(p, "detail")
@@ -241,14 +260,13 @@ def step_detail() -> None:
     if stored is not None and f"{p}_extent" not in ss:
         apply_profile(p, stored)  # widget state is dropped while other steps are shown
     st.markdown("### " + ("Údaje o vaší nemoci" if lay else "Parametry pacienta"))
-    if lay:
-        st.info(f"**Co je klinická studie?** {TOOLTIPS['studie']}")
     if ss.get(f"{p}_dropped"):
         st.info("Vynecháno (údaj nebyl doložen citací ze zprávy): " + ", ".join(ss[f"{p}_dropped"]))
     if stored is not None:
         st.caption("Formulář je předvyplněný ze zprávy – zkontrolujte jej, automatické vyplnění může obsahovat chyby.")
     profile = profile_form(p, lay=lay)
     st.divider()
+    st.markdown(SEARCH_CSS, unsafe_allow_html=True)
     if st.button("🧬 Vyhledat klinickou studii", type="primary", key="wiz_search"):
         ss[f"{p}_profile"] = profile
         _go("results")
@@ -343,10 +361,21 @@ def step_results(studies) -> None:
         st.caption(f"Datum hodnocení: {date.today():%d. %m. %Y}")
 
 
+def _scroll_to_top() -> None:
+    # The counter makes the snippet unique per step change, otherwise Streamlit would not re-run it.
+    components.html(f"""<script>/* {ss.get('wiz_scroll_top', 0)} */
+      const d = window.parent.document;
+      (d.querySelector('[data-testid="stMain"]') || d.scrollingElement).scrollTo(0, 0);
+      window.parent.scrollTo(0, 0);</script>""", height=0)
+
+
 def run(studies) -> None:
     step = ss.get("wiz_step", "role")
     if step != "role":
         _nav()
+    if ss.get("wiz_scroll_top", 0) != ss.get("wiz_scrolled", 0):
+        ss["wiz_scrolled"] = ss.get("wiz_scroll_top", 0)
+        _scroll_to_top()
     {"role": step_role, "doc_choice": step_doc_choice, "report": step_report, "review": step_review,
      "detail": step_detail}.get(step, lambda: step_results(studies))()
     disclaimer(lay=_lay() and step != "role")

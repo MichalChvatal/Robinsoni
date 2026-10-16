@@ -11,5 +11,6 @@ st.caption(f"Průvodce klinickými studiemi MOÚ · {len(studies)} studií s ote
 
 wizard.run(studies)
 
-st.divider()
-st.page_link("pages/3_Sprava_studii.py", label="Správa studií (pro administrátory)", icon="🗂️")
+if st.session_state.get("wiz_step", "role") == "role":
+    st.divider()
+    st.page_link("pages/3_Sprava_studii.py", label="Správa (pro administrátory)", icon="🗂️")
