@@ -22,5 +22,6 @@ Webová aplikace (hackathon MVP) pro párování onkologických pacientů s klin
 - Validace katalogu: `.venv\Scripts\python.exe -m trialink.import_studies --check`
 - Test připojení k IRIS (jen čtení): `.venv\Scripts\python.exe -m trialink.db`
 - Import do IRIS: `.venv\Scripts\python.exe -m trialink.import_studies`
+- Číselník TNM skupin (topo × morfologie, `cis_skupina.csv` → `TriaLink.TopoMorpho`): `.venv\Scripts\python.exe -m trialink.dictionaries [--check]`; prázdné topo = lymfomy (platí pro libovolnou lokalizaci, ve formuláři pro dg. C81–C96)
 - Aplikace: `.venv\Scripts\python.exe -m streamlit run app/Home.py`
 - Konfigurace v `.env` (vzor `.env.example`); `.env` se nikdy necommituje a hesla se nevypisují.

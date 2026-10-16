@@ -86,6 +86,7 @@ class TherapyEpisode:
 @dataclass
 class PatientProfile:
     icd10: str | None = None
+    morphology: str | None = None
     histology: str | None = None
     disease_extent: str | None = None
     setting: str | None = None
