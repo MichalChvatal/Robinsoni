@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from conftest import requires_export
 
 from trialink.catalog import load_catalog
 from trialink.demo_cases import case2, case5
@@ -66,6 +67,7 @@ def test_input_limits():
         extract_profile("x" * 50_000, client=_FailingClient())
 
 
+@requires_export
 def test_referral_simulation_and_blockers():
     studies, _, _ = load_catalog()
     r2 = next(r for r in match(studies, case2()) if r.study.study_id == "2025/R46")

@@ -20,6 +20,20 @@ from trialink.model import (  # noqa: E402
 
 load_dotenv()
 
+
+def _secrets_to_env() -> None:
+    """On Streamlit Community Cloud configuration comes from st.secrets instead of .env."""
+    try:
+        items = dict(st.secrets)
+    except Exception:
+        return
+    for key, value in items.items():
+        if isinstance(value, (str, int, float)) and not os.getenv(key):
+            os.environ[key] = str(value)
+
+
+_secrets_to_env()
+
 ICD_GROUPS = {
     "C15 Jícen": "C15", "C16 Žaludek": "C16", "C18 Tlusté střevo": "C18", "C19 Rektosigmoideum": "C19",
     "C20 Konečník": "C20", "C22 Játra a intrahepatální žlučovody": "C22", "C23 Žlučník": "C23",
@@ -50,7 +64,13 @@ def get_catalog():
                 return studies, f"InterSystems IRIS ({os.getenv('IRIS_HOST')})", []
         except Exception as exc:
             source = f"lokální export (IRIS nedostupné: {type(exc).__name__})"
-    studies, report, issues = load_catalog()
+    try:
+        studies, report, issues = load_catalog()
+    except FileNotFoundError:
+        st.error("Katalog studií není dostupný: nepodařilo se načíst studie z IRIS a lokální export SONIS chybí. "
+                 "Na Streamlit Cloud nastavte v Settings → Secrets IRIS_HOST, IRIS_PORT, IRIS_NAMESPACE, IRIS_USER a IRIS_PASSWORD."
+                 + (f" ({source})" if "IRIS" in source else ""))
+        st.stop()
     return studies, source, issues
 
 

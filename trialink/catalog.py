@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,8 +58,13 @@ class Study:
 
 
 def default_export_path() -> Path:
-    data_root = next(d for d in REPO_ROOT.glob("RAKATHON*/RAKATHON*") if d.is_dir())
-    return next(data_root.glob("*NIS*/*.csv"))
+    """TRIALINK_EXPORT env var, else the local (git-ignored) hackathon data folder."""
+    if os.getenv("TRIALINK_EXPORT"):
+        return Path(os.environ["TRIALINK_EXPORT"])
+    for data_root in (d for d in REPO_ROOT.glob("RAKATHON*/RAKATHON*") if d.is_dir()):
+        for path in data_root.glob("*NIS*/*.csv"):
+            return path
+    raise FileNotFoundError("Export studií SONIS nebyl nalezen (nastavte TRIALINK_EXPORT nebo připojení k IRIS).")
 
 
 def _normalize_ws(text: str) -> str:

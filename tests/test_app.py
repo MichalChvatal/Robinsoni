@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from conftest import requires_catalog
+
 from streamlit.testing.v1 import AppTest
 
 APP = Path(__file__).resolve().parent.parent / "app"
@@ -12,11 +14,13 @@ def _run(page: str) -> AppTest:
     return at
 
 
+@requires_catalog
 def test_home_renders():
     at = _run("Home.py")
     assert "TriaLink" in at.title[0].value
 
 
+@requires_catalog
 def test_doctor_flow_case2_to_simulated_referral():
     at = _run("pages/1_Lekar.py")
     at.sidebar.selectbox[0].select("Case 2 – skvamózní ca jícnu, po 1. linii").run()
@@ -37,6 +41,7 @@ def test_doctor_flow_case2_to_simulated_referral():
     assert any("Doplněk lékaře" in t.value for t in at.text)
 
 
+@requires_catalog
 def test_doctor_reset_clears_patient_state():
     at = _run("pages/1_Lekar.py")
     at.sidebar.selectbox[0].select("Case 1 – CRC, KRAS G13D, metastatický").run()
@@ -47,6 +52,7 @@ def test_doctor_reset_clears_patient_state():
     assert "doc_bio_init" not in at.session_state
 
 
+@requires_catalog
 def test_patient_page_renders():
     at = _run("pages/2_Pacient.py")
     assert at.title[0].value.startswith("🙂")

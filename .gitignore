@@ -2,9 +2,15 @@
 Robinson1.pem
 *.pem
 .env
+.streamlit/secrets.toml
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 trialink_import_report*.json
 ~$*
+# Hackathon source data stays local only (not public).
+RAKATHON*/
+RAKATHON*
+NazevVyzvy.md
+rakathon2026_team68.pdf
