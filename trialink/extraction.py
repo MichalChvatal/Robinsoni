@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
+from .dictionaries import normalize_morpho
 from .model import BIOMARKER_STATUSES, EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS, BiomarkerResult, PatientProfile, TherapyEpisode
 
 MAX_REPORT_CHARS = 40_000
@@ -29,6 +30,7 @@ Pravidla:
 - Ke každému údaji vrať 'evidence' = přesný doslovný úryvek ze zprávy (max 200 znaků), ze kterého údaj plyne.
 - Když si zpráva odporuje, uveď rozpor do 'conflicts' a u biomarkeru nastav conflict=true a uveď všechny hodnoty.
 - icd10: kód MKN-10 primárního nádoru (např. C18.6), odvoď z lokalizace uvedené ve zprávě; v evidence cituj lokalizaci.
+- morphology: morfologický kód ICD-O-3 primárního nádoru, jen pokud je ve zprávě uveden (např. 8140/3); nevymýšlej ho.
 - disease_extent: aktuální stav ({", ".join(EXTENTS)}).
 - setting: léčba, která je NYNÍ plánována ({", ".join(SETTINGS)}).
 - prior_palliative_lines: počet již podaných linií systémové léčby pokročilého/metastatického onemocnění (neo/adjuvance se nepočítá).
@@ -52,10 +54,11 @@ def _enum(values) -> dict:
 
 SCHEMA = {
     "type": "object", "additionalProperties": False,
-    "required": ["icd10", "histology", "disease_extent", "setting", "prior_palliative_lines", "her2_status", "ecog",
+    "required": ["icd10", "morphology", "histology", "disease_extent", "setting", "prior_palliative_lines", "her2_status", "ecog",
                  "birth_year", "sex", "can_swallow", "therapy_history_known", "therapies", "biomarkers", "conflicts"],
     "properties": {
         "icd10": _fact({"type": ["string", "null"]}),
+        "morphology": _fact({"type": ["string", "null"]}),
         "histology": _fact(_enum(HISTOLOGIES)),
         "disease_extent": _fact(_enum(EXTENTS)),
         "setting": _fact(_enum(SETTINGS)),
@@ -80,7 +83,7 @@ SCHEMA = {
     },
 }
 
-SCALARS = ["icd10", "histology", "disease_extent", "setting", "prior_palliative_lines", "her2_status", "ecog", "birth_year", "sex", "can_swallow"]
+SCALARS = ["icd10", "morphology", "histology", "disease_extent", "setting", "prior_palliative_lines", "her2_status", "ecog", "birth_year", "sex", "can_swallow"]
 
 
 class ExtractionError(RuntimeError):
@@ -119,6 +122,8 @@ def to_profile(data: dict, report_text: str, reference: date) -> Extraction:
         if name == "birth_year":
             p.age = reference.year - int(fact["value"])
             p.conflicts.append(f"Věk odvozen z ročníku narození ({fact['value']}) – může být o 1 rok nižší.")
+        elif name == "morphology":
+            p.morphology = normalize_morpho(str(fact["value"]))
         else:
             setattr(p, name, fact["value"])
 

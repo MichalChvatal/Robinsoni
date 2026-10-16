@@ -29,6 +29,14 @@ DDL = {
     "Contact": """CREATE TABLE TriaLink.Contact (
         StudyId VARCHAR(50) NOT NULL, Version INTEGER NOT NULL, ContactRole VARCHAR(10), Name VARCHAR(200),
         Email VARCHAR(200), Extension VARCHAR(20), ExtensionSimulated BIT)""",
+    "TopoMorpho": """CREATE TABLE TriaLink.TopoMorpho (
+        RecordId INTEGER NOT NULL PRIMARY KEY, Skupina INTEGER NOT NULL, SkupinaNazev VARCHAR(200),
+        Topo VARCHAR(4), Morfo VARCHAR(5) NOT NULL, PlatnostOd DATE, PlatnostDo DATE, SourceHash VARCHAR(64))""",
+}
+
+INDEXES = {
+    "TopoMorpho": ["CREATE INDEX TopoIdx ON TriaLink.TopoMorpho (Topo)",
+                   "CREATE INDEX TopoMorfoIdx ON TriaLink.TopoMorpho (Topo, Morfo)"],
 }
 
 
@@ -53,6 +61,8 @@ def ensure_schema(conn) -> list[str]:
     for name, ddl in DDL.items():
         if name not in existing:
             cur.execute(ddl)
+            for index_ddl in INDEXES.get(name, []):
+                cur.execute(index_ddl)
             created.append(name)
     conn.commit()
     return created
@@ -140,6 +150,48 @@ def load_active_studies(conn) -> list[Study]:
         studies.append(Study(sid, acronym, protocol, indication, diagnoses or "", StudyRecord(rec["fields"], rec["hash"], rec["repaired"]),
                              json.loads(cohorts_json), review, contacts))
     return studies
+
+
+def save_topo_morpho(conn, rows, source_name: str, source_hash: str) -> dict[str, int]:
+    """Replace the whole cis_skupina dictionary in one transaction; unchanged source file is skipped."""
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*), MAX(SourceHash) FROM TriaLink.TopoMorpho")
+    count, current_hash = cur.fetchone()
+    if count == len(rows) and current_hash == source_hash:
+        return {"inserted": 0, "unchanged": count}
+    try:
+        cur.execute("DELETE FROM TriaLink.TopoMorpho")
+        batch = [[r.record_id, r.skupina, r.skupina_nazev, r.topo, r.morfo, r.platnost_od, r.platnost_do, source_hash] for r in rows]
+        for i in range(0, len(batch), 2000):
+            cur.executemany("INSERT INTO TriaLink.TopoMorpho (RecordId, Skupina, SkupinaNazev, Topo, Morfo, PlatnostOd, PlatnostDo, SourceHash)"
+                            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)", batch[i:i + 2000])
+        cur.execute(
+            "INSERT INTO TriaLink.SourceImport (SourceName, SourceHash, ImportedAt, Records, NewVersions, Unchanged, Notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [source_name, source_hash, datetime.now(timezone.utc).replace(tzinfo=None), len(rows), len(rows), 0, '{"table": "TopoMorpho"}'],
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"inserted": len(rows), "unchanged": 0}
+
+
+def load_topo_morpho(conn):
+    from .dictionaries import TopoMorphoRow
+
+    cur = conn.cursor()
+    cur.execute("SELECT RecordId, Skupina, SkupinaNazev, Topo, Morfo, PlatnostOd, PlatnostDo FROM TriaLink.TopoMorpho")
+    return [TopoMorphoRow(int(r[0]), int(r[1]), r[2] or "", r[3] or None, r[4], _as_date(r[5]), _as_date(r[6])) for r in cur.fetchall()]
+
+
+def _as_date(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "year"):
+        return value
+    return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
 
 
 if __name__ == "__main__":

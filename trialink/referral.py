@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .catalog import Contact
+from .dictionaries import format_morpho
 from .matching import STATUS_LABELS, CohortResult
 from .model import EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS, PatientProfile
 
@@ -20,6 +21,8 @@ def _summary(p: PatientProfile) -> list[str]:
     lines = []
     if p.icd10:
         lines.append(f"Diagnóza (MKN-10): {p.icd10}")
+    if p.morphology:
+        lines.append(f"Morfologie (ICD-O-3): {format_morpho(p.morphology)}")
     if p.histology:
         lines.append(f"Histologie: {HISTOLOGIES.get(p.histology, p.histology)}")
     if p.disease_extent:

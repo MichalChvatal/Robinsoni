@@ -6,7 +6,7 @@ from .model import PatientProfile, TherapyEpisode as T
 
 
 def case1() -> PatientProfile:
-    p = PatientProfile(icd10="C186", histology="adenokarcinom", disease_extent="metastaticke", setting="paliativni",
+    p = PatientProfile(icd10="C186", morphology="81403", histology="adenokarcinom", disease_extent="metastaticke", setting="paliativni",
                        prior_palliative_lines=0, therapies=[], ecog=0, age=54, sex="M", can_swallow=True)
     p.set_biomarker(B("KRAS", "pozitivni", "G13D"))
     p.set_biomarker(B("BRAF", "negativni"))
@@ -25,7 +25,7 @@ def case2() -> PatientProfile:
 
 
 def case3() -> PatientProfile:
-    p = PatientProfile(icd10="C341", histology="adenokarcinom", disease_extent="metastaticke", setting="paliativni",
+    p = PatientProfile(icd10="C341", morphology="81403", histology="adenokarcinom", disease_extent="metastaticke", setting="paliativni",
                        prior_palliative_lines=0, therapies=[], ecog=1, age=62, sex="F", can_swallow=True)
     p.set_biomarker(B("KRAS", "pozitivni", "p.(Gly12Cys)", method="NGS"))
     p.set_biomarker(B("STK11", "pozitivni", "D53Tfs*11", method="NGS"))
@@ -49,7 +49,7 @@ def case4() -> PatientProfile:
 
 
 def case5() -> PatientProfile:
-    p = PatientProfile(icd10="C504", histology="duktalni_nst", disease_extent="lokalizovane_resekabilni", setting="neoadjuvance",
+    p = PatientProfile(icd10="C504", morphology="85003", histology="duktalni_nst", disease_extent="lokalizovane_resekabilni", setting="neoadjuvance",
                        prior_palliative_lines=0, therapies=[], her2_status="0", ecog=0, age=49, sex="F", can_swallow=True)
     p.set_biomarker(B("ER", "negativni", values=[1, 0]))
     p.set_biomarker(B("PR", "negativni", values=[0]))
