@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from trialink.catalog import load_catalog  # noqa: E402
-from trialink.dictionaries import TopoMorphoIndex, format_morpho, histology_from_morpho, load_file  # noqa: E402
+from trialink.dictionaries import ICD_NAMES, TopoMorphoIndex, diagnosis_label, format_morpho, histology_from_morpho, load_file  # noqa: E402
 from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_LABELS, STATUS_VERIFY, CohortResult  # noqa: E402
 from trialink.lay_terms import TOOLTIPS  # noqa: E402
 from trialink.model import (  # noqa: E402
@@ -35,15 +35,6 @@ def _secrets_to_env() -> None:
 
 _secrets_to_env()
 
-ICD_GROUPS = {
-    "C15 Jícen": "C15", "C16 Žaludek": "C16", "C18 Tlusté střevo": "C18", "C19 Rektosigmoideum": "C19",
-    "C20 Konečník": "C20", "C22 Játra a intrahepatální žlučovody": "C22", "C23 Žlučník": "C23",
-    "C24 Jiné části žlučových cest": "C24", "C25 Slinivka břišní": "C25", "C32 Hrtan": "C32",
-    "C34 Průdušky a plíce": "C34", "C43 Melanom kůže": "C43", "C48 Retroperitoneum a peritoneum": "C48",
-    "C50 Prs": "C50", "C53 Děložní hrdlo": "C53", "C54 Tělo děložní": "C54", "C56 Vaječník": "C56",
-    "C57 Jiné ženské pohlavní orgány": "C57", "C61 Prostata": "C61", "C64 Ledvina": "C64",
-    "C67 Močový měchýř": "C67", "C71 Mozek": "C71",
-}
 STATUS_ICONS = {STATUS_CANDIDATE: "🟢", STATUS_VERIFY: "🟡", STATUS_EXCLUDED: "🔴"}
 STATE_ICONS = {"splneno": "✅", "nesplneno": "❌", "nezname": "❔", "rozpor": "⚠️"}
 SESSION_TIMEOUT_S = 15 * 60
@@ -206,9 +197,8 @@ def _fmt(options: dict):
 
 def apply_profile(prefix: str, p: PatientProfile) -> None:
     """Prefill widget state from a profile (demo case or extraction)."""
-    icd = normalize_icd(p.icd10) or ""
+    icd = normalize_icd(p.icd10)
     ss = st.session_state
-    ss[f"{prefix}_icd_group"] = next((v for v in ICD_GROUPS.values() if icd.startswith(v)), None)
     ss[f"{prefix}_icd"] = icd
     ss[f"{prefix}_morpho"] = p.morphology
     ss[f"{prefix}_histology"] = p.histology
@@ -241,42 +231,51 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
             st.caption(f"Zdroj: „{evidence[name]}“")
 
     st.markdown("#### 1 · Diagnóza" if not lay else "#### 1 · Jakou máte diagnózu?")
-    c1, c2 = st.columns([2, 1])
-    group = c1.selectbox("Skupina diagnóz (MKN-10)", [None, *ICD_GROUPS.values()], key=f"{prefix}_icd_group",
-                         format_func=lambda v: UNKNOWN if v is None else next(k for k, x in ICD_GROUPS.items() if x == v), help=tip("mkn10"))
-    if group and not (ss.get(f"{prefix}_icd") or "").startswith(group):
-        ss[f"{prefix}_icd"] = group
-    icd = c2.text_input("Přesný kód", key=f"{prefix}_icd", placeholder="např. C18.6", help=tip("mkn10"))
-    src("icd10")
-
     index, morpho_source = get_topo_morpho()
-    diagnosis = normalize_icd(icd) or group
+    icd_key, morpho_key, hist_key = f"{prefix}_icd", f"{prefix}_morpho", f"{prefix}_histology"
+    codes = index.diagnosis_codes() if index else sorted(ICD_NAMES)
+    current = normalize_icd(ss.get(icd_key))
+    if ss.get(icd_key) != current:
+        ss[icd_key] = current
+    if current and current not in codes:
+        codes = sorted({*codes, current})
+    c1, c2 = st.columns(2)
+    diagnosis = c1.selectbox(
+        "Diagnóza (MKN-10)" if not lay else "Kde nádor vznikl (diagnóza)", [None, *codes], key=icd_key,
+        format_func=lambda v: UNKNOWN if v is None else diagnosis_label(v),
+        help=tip("mkn10") or "Začněte psát kód nebo orgán (např. C18 nebo prás) – seznam se vyfiltruje. "
+                                "Tříznakový kód (C18) = lokalizace bez upřesnění.")
+
     allowed = index.morphologies(diagnosis) if index and diagnosis else []
-    morpho_key = f"{prefix}_morpho"
     if ss.get(morpho_key) and ss[morpho_key] not in allowed:
         if diagnosis and index:
-            st.warning(f"Morfologie {format_morpho(ss[morpho_key])} není pro diagnózu {diagnosis} v číselníku povolena – vyberte znovu.")
+            st.warning(f"Morfologie {format_morpho(ss[morpho_key])} není pro diagnózu {diagnosis_label(diagnosis)} v číselníku povolena – vyberte znovu.")
         ss[morpho_key] = None
-    c1, c2 = st.columns(2)
-    morpho = c1.selectbox(
-        "Morfologie (ICD-O-3)", [None, *allowed], key=morpho_key,
+    morpho = c2.selectbox(
+        "Morfologie (ICD-O-3)" if not lay else "Typ nádoru podle zprávy (morfologie)", [None, *allowed], key=morpho_key,
         format_func=lambda v: UNKNOWN if v is None else format_morpho(v), disabled=not allowed,
-        help=(f"Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu podle číselníku TNM skupin. Zdroj: {morpho_source}." if index
+        help=(f"Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu podle číselníku TNM skupin "
+              f"(zdroj: {morpho_source}). Lze vyhledávat kódem i názvem, např. 8140 nebo adenokarcinom." if index
               else f"Číselník morfologií není dostupný: {morpho_source}."))
-    hist_key = f"{prefix}_histology"
+    src("icd10")
+    src("morphology")
+
     derived = histology_from_morpho(morpho)
-    if derived and not ss.get(hist_key):
-        ss[hist_key] = derived
-    histology = c2.selectbox("Histologie", _opt(HISTOLOGIES), format_func=_fmt(HISTOLOGIES), key=hist_key, help=tip("histologie"))
-    if index and diagnosis:
-        groups = index.group_names(diagnosis, morpho)
-        if not index.topographies(diagnosis) and not index.is_any_site(diagnosis):
-            st.caption(f"Kód {diagnosis} není v číselníku TNM skupin – morfologii nelze omezit.")
-        elif morpho and groups:
-            st.caption("Skupina TNM: " + ", ".join(groups))
+    if derived:
+        histology = derived
+        groups = index.group_names(diagnosis, morpho) if index else []
+        st.caption(f"Histologický typ pro párování se studiemi: **{HISTOLOGIES[derived]}** (odvozeno z morfologie)"
+                   + (f" · skupina TNM: {', '.join(groups)}" if groups else ""))
+    else:
+        histology = st.selectbox(
+            "Histologický typ" + (" (nelze odvodit z morfologie)" if morpho else " (pokud neznáte morfologii)"),
+            _opt(HISTOLOGIES), format_func=_fmt(HISTOLOGIES), key=hist_key,
+            help=tip("histologie") or "Kritéria studií jsou formulována histologickým typem (např. adenokarcinom, skvamózní). "
+                                      "Když zvolíte morfologii, typ se doplní automaticky.")
+    if index and diagnosis and not allowed:
+        st.caption(f"Kód {diagnosis_label(diagnosis)} není v číselníku TNM skupin – morfologii nelze vybrat.")
     elif not index:
         st.caption(f"⚠️ Číselník morfologií není dostupný: {morpho_source}.")
-    src("morphology")
     src("histology")
 
     st.markdown("#### 2 · Rozsah onemocnění" if not lay else "#### 2 · Jak je nemoc rozsáhlá?")
@@ -315,7 +314,7 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
                            key=f"{prefix}_swallow", help=tip("polykani"))
 
     p = PatientProfile(
-        icd10=normalize_icd(icd) or group, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
+        icd10=diagnosis, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
         prior_palliative_lines=int(lines) if lines_known else None, her2_status=her2,
         biomarkers=rows_to_biomarkers(bio_rows), therapies=therapies, ecog=ecog,
         age=int(age) if age is not None else None, sex=sex, can_swallow={"ano": True, "ne": False}.get(swallow),
