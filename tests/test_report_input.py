@@ -71,6 +71,7 @@ def test_upload_is_default_and_camera_only_on_demand(services):
     at.button(key="wiz_role_pat").click().run()
     assert at.radio(key="pat_mode").value == "file"
     assert not at.get("camera_input")
+    assert "wiz_demo" not in {b.key for b in at.button}
     at.radio(key="pat_mode").set_value("photo").run()
     assert at.get("camera_input")
 

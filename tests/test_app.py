@@ -1,10 +1,16 @@
 from pathlib import Path
 
+import pytest
 from conftest import requires_catalog
 
 from streamlit.testing.v1 import AppTest
 
 APP = Path(__file__).resolve().parent.parent / "app"
+
+
+@pytest.fixture(autouse=True)
+def _demo_cases(monkeypatch):
+    monkeypatch.setenv("TRIALINK_DEMO", "1")
 
 
 def _run(page: str = "Home.py") -> AppTest:

@@ -4,7 +4,7 @@ import time
 
 import streamlit as st
 
-from common import get_catalog, page_setup
+from common import get_catalog, page_setup, reset
 from trialink import sonis
 from trialink.auth import Throttle, verify_password
 from trialink.catalog import load_catalog, study_from_record, validate
@@ -16,8 +16,14 @@ AUTH = "admauth_ok"
 page_setup("Správa studií", P)
 ss = st.session_state
 
-st.markdown("[← Zpět na průvodce](/)")
-st.title("🗂️ Správa studií")
+c_back, c_home, _ = st.columns([1, 1, 4])
+if c_back.button("← Zpět", key="adm_nav_back", width="stretch"):
+    st.switch_page("Home.py")
+if c_home.button("🏠 Domů", key="adm_nav_home", width="stretch"):
+    for prefix in ("wiz", "doc", "pat"):
+        reset(prefix)
+    st.switch_page("Home.py")
+st.title("🗂️ Správa (pro administrátory)")
 
 
 @st.cache_resource

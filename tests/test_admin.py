@@ -90,11 +90,16 @@ def test_admin_page_disabled_without_hash(monkeypatch):
 def test_admin_page_requires_password(monkeypatch):
     at = _admin_app(monkeypatch, hash_password("spravne-heslo-123", iterations=1000))
     assert not at.tabs
+    assert {"adm_nav_back", "adm_nav_home"} <= {b.key for b in at.button}
+
+    def login():
+        return next(b for b in at.button if b.label == "Přihlásit")
+
     at.text_input[0].input("spatne")
-    at.button[0].click().run()
+    login().click().run()
     assert any("Nesprávné" in e.value for e in at.error) and not at.tabs
     at.text_input[0].input("spravne-heslo-123")
-    at.button[0].click().run()
+    login().click().run()
     at.run()
     assert not at.exception, at.exception
     assert not any("Nesprávné" in e.value for e in at.error)
