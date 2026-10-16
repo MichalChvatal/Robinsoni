@@ -59,10 +59,30 @@ def test_anonymize_finds_and_masks_identifiers():
 def _patient_review(report: str) -> AppTest:
     at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
     at.button(key="wiz_role_pat").click().run()
+    at.radio(key="pat_mode").set_value("text").run()
     at.text_area(key="pat_draft").input(report).run()
     at.button(key="wiz_load").click().run()
     assert not at.exception, at.exception
     return at
+
+
+def test_upload_is_default_and_camera_only_on_demand(services):
+    at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
+    at.button(key="wiz_role_pat").click().run()
+    assert at.radio(key="pat_mode").value == "file"
+    assert not at.get("camera_input")
+    at.radio(key="pat_mode").set_value("photo").run()
+    assert at.get("camera_input")
+
+
+def test_missing_facts_default_to_unknown(services):
+    at = _patient_review("Adenokarcinom C18.6, ECOG 1.")
+    at.checkbox(key="pat_report_ok").check().run()
+    at.button(key="wiz_to_detail").click().run()
+    assert at.selectbox(key="pat_lines").value is None
+    assert at.radio(key="pat_extent").value is None
+    assert at.radio(key="pat_ther_mode").value is None
+    assert at.selectbox(key="pat_lines").options[0] == "— nevím / nezadáno —"
 
 
 def test_report_goes_to_review_without_cloud_call(services):
