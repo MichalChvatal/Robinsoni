@@ -143,9 +143,24 @@ def build(records: list[sonis.StudyRecord], criteria: dict[str, Any]) -> tuple[l
     return studies, notes
 
 
-def load_catalog(export_path: Path | None = None) -> tuple[list[Study], sonis.ImportReport, list[str]]:
-    path = export_path or default_export_path()
-    records, report = sonis.parse_export(path.read_bytes(), path.name)
-    criteria = json.loads(CRITERIA_FILE.read_text(encoding="utf-8"))
-    studies, notes = build(records, criteria)
+def load_criteria() -> dict[str, Any]:
+    return json.loads(CRITERIA_FILE.read_text(encoding="utf-8"))
+
+
+def study_from_record(rec: sonis.StudyRecord, cohorts: list[dict[str, Any]] | None = None, review: str | None = None) -> Study:
+    """One study; explicit cohorts (e.g. LLM draft) override criteria.json / fallback."""
+    criteria = load_criteria()
+    if cohorts is not None:
+        criteria = {"studies": {**criteria["studies"], rec.study_id: {"cohorts": cohorts, "review": review or "navrh"}}}
+    studies, _ = build([rec], criteria)
+    return studies[0]
+
+
+def load_catalog(export_path: Path | None = None, data: bytes | None = None, name: str | None = None
+                 ) -> tuple[list[Study], sonis.ImportReport, list[str]]:
+    if data is None:
+        path = export_path or default_export_path()
+        data, name = path.read_bytes(), path.name
+    records, report = sonis.parse_export(data, name or "export")
+    studies, notes = build(records, load_criteria())
     return studies, report, notes + validate(studies)

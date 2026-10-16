@@ -19,6 +19,8 @@ with c2:
     st.write("Srozumitelný průvodce s nápovědou. Volitelně lze vložit anonymizovanou zprávu a parametry se vyplní automaticky.")
     st.page_link("pages/2_Pacient.py", label="Otevřít průvodce pro pacienty", icon="➡️")
 
+st.page_link("pages/3_Sprava_studii.py", label="Správa studií – nahrát export nebo přidat novou studii", icon="🗂️")
+
 st.divider()
 st.markdown("**Ochrana dat:** aplikace neukládá žádné údaje o pacientech do databáze ani na disk. Zadané údaje existují jen "
             "v operační paměti po dobu relace a smažou se tlačítkem *Vymazat* nebo po 15 minutách nečinnosti.")

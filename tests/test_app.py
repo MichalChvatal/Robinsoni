@@ -27,10 +27,14 @@ def test_doctor_flow_case2_to_simulated_referral():
     ref_buttons = [b for b in at.button if b.key == "doc_ref_2025/R46"]
     assert ref_buttons
     ref_buttons[0].click().run()
+    body = next(t for t in at.text_area if t.key == "doc_ref_body_2025/R46")
+    assert "MSD - jícen" in body.value
+    body.input(body.value + "\nDoplněk lékaře: prosím o rychlé posouzení.").run()
     send = [b for b in at.button if b.label == "Odeslat (simulace)"]
     assert send and not send[0].disabled
     send[0].click().run()
     assert any("SIMULACE" in s.value for s in at.success)
+    assert any("Doplněk lékaře" in t.value for t in at.text)
 
 
 def test_doctor_reset_clears_patient_state():

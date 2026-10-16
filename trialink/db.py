@@ -63,12 +63,35 @@ def version_hash(study: Study) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _keep_curated(cur, s: Study) -> None:
+    """A fallback study must not overwrite criteria already curated in IRIS for the same study text."""
+    if s.review != "nestrukturovano":
+        return
+    cur.execute("SELECT RecordJson, CohortsJson, Review FROM TriaLink.Study WHERE StudyId = ? AND Active = 1", [s.study_id])
+    row = cur.fetchone()
+    if row and row[2] != "nestrukturovano" and json.loads(row[0]).get("hash") == s.record.content_hash:
+        s.cohorts, s.review = json.loads(row[1]), row[2]
+
+
+def active_versions(conn) -> dict[str, tuple[int, str, str]]:
+    """StudyId -> (Version, VersionHash, Review) of active versions."""
+    cur = conn.cursor()
+    cur.execute("SELECT StudyId, Version, VersionHash, Review FROM TriaLink.Study WHERE Active = 1")
+    return {r[0]: (r[1], r[2], r[3]) for r in cur.fetchall()}
+
+
+def save_study(conn, study: Study, source_name: str = "ruční zadání") -> dict[str, int]:
+    report = ImportReport(source_name, study.record.content_hash, records=1)
+    return save_catalog(conn, [study], report, [])
+
+
 def save_catalog(conn, studies: list[Study], report: ImportReport, notes: list[str]) -> dict[str, int]:
     """Idempotent: unchanged studies are skipped; changed ones get a new active version, old versions are kept."""
     cur = conn.cursor()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     new_versions = unchanged = 0
     for s in studies:
+        _keep_curated(cur, s)
         h = version_hash(s)
         cur.execute("SELECT Version, VersionHash FROM TriaLink.Study WHERE StudyId = ? AND Active = 1", [s.study_id])
         row = cur.fetchone()

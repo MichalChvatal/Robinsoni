@@ -23,6 +23,10 @@ Code: [trialink/sonis.py](../../../trialink/sonis.py), [trialink/catalog.py](../
 - Missing/unpaired contact → `Study.referral_blockers` (referral cannot be sent).
 
 ## New export workflow
+UI: page **Správa studií** ([app/pages/3_Sprava_studii.py](../../../app/pages/3_Sprava_studii.py)) – tab "Nahrát export" (diff vs IRIS: nová/změněná/beze změny, optional AI drafts for studies without rules) and tab "Přidat studii ručně" (`sonis.record_from_fields` → `structuring.draft_criteria` → editable JSON → `db.save_study`). After saving, `get_catalog.clear()` refreshes matching.
+`db.save_catalog` keeps already curated criteria in IRIS when an export brings the same study text without rules (`_keep_curated`).
+
+CLI:
 1. `.venv\Scripts\python.exe -m trialink.import_studies --check --export <path>` – read counts, repaired, quarantine, warnings.
 2. Studies without rules get a fallback cohort (diagnosis + manual review) and review state `nestrukturovano`; add rules (skill `trialink-criteria-llm`).
 3. Run tests, then import into IRIS without `--check`.
