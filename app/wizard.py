@@ -64,6 +64,23 @@ def _nav() -> None:
 
 # --- steps -------------------------------------------------------------------------------------------------------
 
+CARD_KEYS = ("wiz_role_doc", "wiz_role_pat", "wiz_choice_report", "wiz_choice_form")
+CARD_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in CARD_KEYS) + """{
+  min-height: 170px; padding: 1.4rem 1.6rem; border-radius: 0.8rem; justify-content: flex-start; align-items: flex-start;
+  text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s;}
+""" + ", ".join(f".st-key-{k} button:hover" for k in CARD_KEYS) + """{
+  border-color: #ff4b4b; box-shadow: 0 4px 14px rgba(0,0,0,.08); transform: translateY(-2px);}
+""" + ", ".join(f".st-key-{k} button p" for k in CARD_KEYS) + """{
+  white-space: pre-line; font-size: 1rem; line-height: 1.5; text-align: left;}
+""" + ", ".join(f".st-key-{k} button p strong" for k in CARD_KEYS) + """{
+  display: block; font-size: 1.35rem; margin-bottom: 0.6rem;}
+</style>"""
+
+
+def _card(column, key: str, title: str, text: str, on_click, args) -> None:
+    column.button(f"**{title}**\n\n{text}", key=key, on_click=on_click, args=args, width="stretch")
+
+
 def _choose_role(role: str) -> None:
     _restart()
     ss["wiz_role"] = role
@@ -76,32 +93,26 @@ def _choose_role(role: str) -> None:
 
 def step_role() -> None:
     st.markdown("### Kdo jste?")
+    st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    with c1.container(border=True):
-        st.markdown("#### 👩‍⚕️ Jsem lékař")
-        st.write("Zadejte údaje ze zprávy nebo formuláře, získejte seznam vhodných studií a pošlete referral studijnímu týmu.")
-        st.button("Pokračovat jako lékař", on_click=_choose_role, args=(DOCTOR,), type="primary",
-                  key="wiz_role_doc", width="stretch")
-    with c2.container(border=True):
-        st.markdown("#### 🙂 Jsem pacient")
-        st.write("Nahrajte svou lékařskou zprávu a zjistěte, o kterých studiích si můžete promluvit se svým onkologem.")
-        st.button("Pokračovat jako pacient", on_click=_choose_role, args=(PATIENT,), type="primary",
-                  key="wiz_role_pat", width="stretch")
+    _card(c1, "wiz_role_doc", "👩‍⚕️ Jsem lékař",
+          "Zadejte údaje ze zprávy nebo formuláře, získejte seznam vhodných studií a pošlete referral studijnímu týmu.",
+          _choose_role, (DOCTOR,))
+    _card(c2, "wiz_role_pat", "🙂 Jsem pacient",
+          "Nahrajte svou lékařskou zprávu a zjistěte, o kterých studiích si můžete promluvit se svým onkologem.",
+          _choose_role, (PATIENT,))
     st.caption("Aplikace neukládá žádné údaje o pacientech. Vše existuje jen v paměti po dobu relace a smaže se "
                "tlačítkem „Začít znovu“ nebo po 15 minutách nečinnosti.")
 
 
 def step_doc_choice() -> None:
     st.markdown("### Jak chcete zadat údaje pacienta?")
+    st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    with c1.container(border=True):
-        st.markdown("#### 📄 Vložit lékařskou zprávu")
-        st.write("Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.")
-        st.button("Vložit zprávu", on_click=_go, args=("report",), type="primary", key="wiz_choice_report", width="stretch")
-    with c2.container(border=True):
-        st.markdown("#### 📝 Vyplnit formulář")
-        st.write("Rozhodovací strom: diagnóza → rozsah → léčba → biomarkery.")
-        st.button("Vyplnit formulář", on_click=_go, args=("detail",), type="primary", key="wiz_choice_form", width="stretch")
+    _card(c1, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
+          "Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.", _go, ("report",))
+    _card(c2, "wiz_choice_form", "📝 Vyplnit formulář",
+          "Rozhodovací strom: diagnóza → rozsah → léčba → biomarkery.", _go, ("detail",))
 
 
 def _load_report(prefix: str) -> None:
