@@ -8,13 +8,13 @@ Robinson 2
 
 ## Lokální OCR zpráv
 
-V lékařském i pacientském rozhraní lze načíst JPG/PNG nebo UTF-8 `.txt`.
-Tlačítko **Načíst text do zprávy (lokálně)** vyplní upravitelnou kolonku
-**Anonymizovaná zpráva**; nevolá OpenAI. Uživatel opraví rozpoznaný text a
-odstraní identifikátory. OCR samo zprávu neanonymizuje.
-Až tlačítko **Extrahovat parametry** (lékař) nebo **Vyplnit formulář ze zprávy**
-(pacient) odešle obsah této kolonky do současné cloudové extrakce.
-Fotografie se do OpenAI neposílá.
+Průvodce (krok **Lékařská zpráva**) přijme vložený text, `.txt` (UTF-8 / cp1250),
+JPG/PNG nebo fotku z kamery. Tlačítko **Pokračovat ke kontrole textu** převede
+soubor na text lokálně (OCR) a nevolá OpenAI. V kroku **Kontrola a anonymizace**
+uživatel opraví text, může nechat automaticky nahradit rodné číslo, telefon,
+e-mail a řádky se jménem/adresou a musí potvrdit kontrolu. Až tlačítka
+**Zobrazit detail** nebo **Vyhledat klinickou studii** odešlou text do cloudové
+extrakce; poté se text z paměti relace smaže. Fotografie se do OpenAI neposílá.
 
 - Nainstalujte Python závislosti: `python -m pip install -r requirements.txt`.
 - Na serveru aplikace nainstalujte Tesseract OCR s českými jazykovými daty `ces`.

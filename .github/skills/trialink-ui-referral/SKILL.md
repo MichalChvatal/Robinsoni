@@ -5,12 +5,15 @@ description: "Use when changing the TriaLink Streamlit web app or referral: doct
 
 # Rozhraní a referral
 
-Code: [app/common.py](../../../app/common.py), [app/pages/1_Lekar.py](../../../app/pages/1_Lekar.py), [app/pages/2_Pacient.py](../../../app/pages/2_Pacient.py), [trialink/referral.py](../../../trialink/referral.py), [trialink/lay_terms.py](../../../trialink/lay_terms.py).
-Run: `.venv\Scripts\python.exe -m streamlit run app/Home.py`. Tests: `tests/test_app.py` (Streamlit `AppTest`).
+Code: [app/Home.py](../../../app/Home.py), [app/wizard.py](../../../app/wizard.py), [app/common.py](../../../app/common.py), [app/report_input.py](../../../app/report_input.py), [trialink/anonymize.py](../../../trialink/anonymize.py), [trialink/referral.py](../../../trialink/referral.py), [trialink/lay_terms.py](../../../trialink/lay_terms.py).
+Run: `.venv\Scripts\python.exe -m streamlit run app/Home.py`. Tests: `tests/test_app.py`, `tests/test_report_input.py` (Streamlit `AppTest`).
 
 ## Conventions
-- Two separate pages, shared form `profile_form(prefix, lay=...)` – decision tree: 1 diagnóza → 2 rozsah → 3 léčebná situace/linie/léčba → 4 biomarkery → 5 ECOG/věk/pohlaví/polykání. Every input has an "unknown" option.
-- Widget keys are prefixed (`doc_`, `pat_`); `reset(prefix)` deletes all of them; inactivity timeout 15 min (`SESSION_TIMEOUT_S`).
+- Single-page wizard in `Home.py` → `wizard.run`: role → (lékař: zpráva/formulář) → report (text / soubor / fotka, lokální OCR) → review (anonymizace + potvrzení, pak teprve OpenAI) → detail (`profile_form`) → results. Navigation state `wiz_step`, `wiz_history`; every step has `wiz_back` (← Zpět) and `wiz_restart`.
+- Widgets of hidden steps lose their state → the confirmed `PatientProfile` is kept in `{prefix}_profile` and re-applied via `apply_profile` when the detail step is shown again.
+- Raw report text is deleted from session right after successful extraction.
+- Shared form `profile_form(prefix, lay=...)` – decision tree: 1 diagnóza → 2 rozsah → 3 léčebná situace/linie/léčba → 4 biomarkery → 5 ECOG/věk/pohlaví/polykání. Every input has an "unknown" option.
+- Keys are prefixed (`wiz_`, `doc_`, `pat_`); `reset(prefix)` deletes them; inactivity timeout 15 min (`SESSION_TIMEOUT_S`) clears all three.
 - Prefill via `apply_profile` (demo case or extraction) before widgets render, then `st.rerun()`.
 - `st.cache_resource` only for reference catalog (`get_catalog`), never for patient data.
 - Patient UI: lay Czech, tooltips from `TOOLTIPS`, shows only candidates / to-verify, no referral sending, advises discussing with oncologist.
