@@ -75,9 +75,13 @@ def get_catalog():
     return studies, source, issues
 
 
-@st.cache_resource(show_spinner="Načítám číselník diagnóz a morfologií…")
+@st.cache_resource(show_spinner="Načítám číselník diagnóz a morfologií z databáze…", ttl=3600)
 def get_topo_morpho() -> tuple[TopoMorphoIndex | None, str]:
-    """Topography x morphology dictionary (cis_skupina) – IRIS first, local file as fallback."""
+    """Allowed topography x morphology pairs (cis_skupina) from IRIS TriaLink.TopoMorpho.
+
+    The whole reference table is loaded and filtered in RAM, so the patient's diagnosis never goes into an SQL query.
+    The local CSV is used only for development without IRIS configured.
+    """
     if os.getenv("IRIS_HOST") and os.getenv("IRIS_PASSWORD"):
         try:
             from trialink import db
@@ -86,13 +90,14 @@ def get_topo_morpho() -> tuple[TopoMorphoIndex | None, str]:
                 rows = db.load_topo_morpho(conn)
             finally:
                 conn.close()
-            if rows:
-                return TopoMorphoIndex(rows), "IRIS"
-        except Exception:
-            pass
+        except Exception as exc:
+            return None, f"IRIS nedostupné ({type(exc).__name__})"
+        if not rows:
+            return None, "tabulka TriaLink.TopoMorpho v IRIS je prázdná (spusťte python -m trialink.dictionaries)"
+        return TopoMorphoIndex(rows), f"InterSystems IRIS · TriaLink.TopoMorpho ({len(rows)} kombinací)"
     try:
         rows, _, name, _ = load_file()
-        return TopoMorphoIndex(rows), name
+        return TopoMorphoIndex(rows), f"lokální soubor {name} (IRIS není nastaveno)"
     except FileNotFoundError:
         return None, "nedostupný"
 
@@ -244,7 +249,7 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     icd = c2.text_input("Přesný kód", key=f"{prefix}_icd", placeholder="např. C18.6", help=tip("mkn10"))
     src("icd10")
 
-    index, _ = get_topo_morpho()
+    index, morpho_source = get_topo_morpho()
     diagnosis = normalize_icd(icd) or group
     allowed = index.morphologies(diagnosis) if index and diagnosis else []
     morpho_key = f"{prefix}_morpho"
@@ -256,8 +261,8 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     morpho = c1.selectbox(
         "Morfologie (ICD-O-3)", [None, *allowed], key=morpho_key,
         format_func=lambda v: UNKNOWN if v is None else format_morpho(v), disabled=not allowed,
-        help=("Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu (číselník TNM skupin)." if index
-              else "Číselník morfologií není dostupný."))
+        help=(f"Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu podle číselníku TNM skupin. Zdroj: {morpho_source}." if index
+              else f"Číselník morfologií není dostupný: {morpho_source}."))
     hist_key = f"{prefix}_histology"
     derived = histology_from_morpho(morpho)
     if derived and not ss.get(hist_key):
@@ -269,6 +274,8 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
             st.caption(f"Kód {diagnosis} není v číselníku TNM skupin – morfologii nelze omezit.")
         elif morpho and groups:
             st.caption("Skupina TNM: " + ", ".join(groups))
+    elif not index:
+        st.caption(f"⚠️ Číselník morfologií není dostupný: {morpho_source}.")
     src("morphology")
     src("histology")
 
