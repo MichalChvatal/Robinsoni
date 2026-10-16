@@ -7,6 +7,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from trialink import sonis
+from trialink.auth import Throttle, hash_password, verify_password
 from trialink.catalog import study_from_record, validate
 from trialink.demo_cases import case3
 from trialink.matching import STATUS_CANDIDATE, evaluate_cohort
@@ -69,10 +70,45 @@ def test_manual_study_without_rules_falls_back_to_review():
     assert validate_draft(study.record, []).cohorts == []
 
 
-def test_admin_page_renders():
+def _admin_app(monkeypatch, stored_hash: str) -> AppTest:
+    monkeypatch.setenv("ADMIN_PASSWORD_HASH", stored_hash)
     app_dir = Path(__file__).resolve().parent.parent / "app"
     # In a real run Streamlit puts the main script dir (app/) on sys.path; AppTest only adds app/pages.
     sys.path.insert(0, str(app_dir))
     at = AppTest.from_file(str(app_dir / "pages" / "3_Sprava_studii.py"), default_timeout=60)
     at.run()
     assert not at.exception, at.exception
+    return at
+
+
+def test_admin_page_disabled_without_hash(monkeypatch):
+    at = _admin_app(monkeypatch, "")
+    assert any("vypnutá" in e.value for e in at.error)
+    assert not at.tabs
+
+
+def test_admin_page_requires_password(monkeypatch):
+    at = _admin_app(monkeypatch, hash_password("spravne-heslo-123", iterations=1000))
+    assert not at.tabs
+    at.text_input[0].input("spatne")
+    at.button[0].click().run()
+    assert any("Nesprávné" in e.value for e in at.error) and not at.tabs
+    at.text_input[0].input("spravne-heslo-123")
+    at.button[0].click().run()
+    at.run()
+    assert not at.exception, at.exception
+    assert not any("Nesprávné" in e.value for e in at.error)
+    assert len(at.tabs) == 2
+
+
+def test_password_hash_and_throttle():
+    h = hash_password("tajne-heslo-xyz", iterations=1000)
+    assert verify_password("tajne-heslo-xyz", h)
+    assert not verify_password("tajne-heslo-xyZ", h)
+    assert not verify_password("x", "nesmysl") and "tajne" not in h
+    t = Throttle(max_failures=3, lockout_s=60)
+    for _ in range(3):
+        assert t.locked_for(now=100) == 0
+        t.fail(now=100)
+    assert t.locked_for(now=110) > 0
+    assert t.locked_for(now=161) == 0
