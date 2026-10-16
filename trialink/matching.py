@@ -222,6 +222,14 @@ def evaluate_cohort(study, cohort: dict[str, Any], p: PatientProfile) -> CohortR
     return res
 
 
+def sex_caution(r: CohortResult, p: PatientProfile) -> str | None:
+    """Advisory note only, the 4-state result is unchanged: male breast cancer vs. a study without a sex rule."""
+    has_sex_rule = any(c["field"] == "sex" for c in r.cohort["criteria"])
+    if p.sex == "M" and (normalize_icd(p.icd10) or "").startswith("C50") and r.targeted and not has_sex_rule:
+        return "Studie u karcinomu prsu – ověřte u studijního týmu, zda přijímá i muže."
+    return None
+
+
 def match(studies, p: PatientProfile) -> list[CohortResult]:
     """Best cohort per study, sorted by tier then evidence."""
     best: dict[str, CohortResult] = {}

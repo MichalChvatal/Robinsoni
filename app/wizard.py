@@ -22,6 +22,7 @@ from trialink.referral import build_referral, simulate_send
 
 ss = st.session_state
 DOCTOR, PATIENT = "lekar", "pacient"
+OTHER_STUDIES = "Studie pro více druhů nádorů"
 STEP_TITLES = {
     "role": "Kdo jste?", "doc_choice": "Jak zadáte údaje?", "report": "Lékařská zpráva",
     "review": "Kontrola a anonymizace", "detail": "Údaje o nemoci", "results": "Nalezené studie",
@@ -45,6 +46,9 @@ def _back() -> None:
 def _restart() -> None:
     for prefix in ("wiz", "doc", "pat"):
         reset(prefix)
+
+
+go_home = _restart
 
 
 def _prefix() -> str:
@@ -190,9 +194,11 @@ def step_report() -> None:
         st.camera_input("Vyfoťte zprávu tak, aby byl text ostrý a celý v záběru", key=f"{p}_photo_{nonce}")
     if ss.get("wiz_error"):
         st.error(ss.pop("wiz_error"))
-    st.button("Pokračovat ke kontrole textu →", on_click=_load_report, args=(p,), type="primary", key="wiz_load")
+    c1, c2 = st.columns(2)
     if lay:
-        st.button("Nemám zprávu – vyplním údaje ručně", on_click=_go, args=("detail",), key="wiz_no_report")
+        c1.button("Nemám zprávu – vyplním údaje ručně", on_click=_go, args=("detail",), key="wiz_no_report", width="stretch")
+    c2.button("Pokračovat ke kontrole textu →", on_click=_load_report, args=(p,), type="primary", key="wiz_load",
+              width="stretch")
     with st.expander("🧪 Ukázkové případy (demo bez AI)"):
         st.selectbox("Testovací kazuistika", [None, *CASES], key=f"{p}_demo",
                      format_func=lambda v: "— vybrat —" if v is None else v)
@@ -240,9 +246,9 @@ def step_review() -> None:
     else:
         st.success("Automatická kontrola nenašla žádné zjevné osobní údaje. **Přesto text prosím projděte a ověřte, že "
                    "neobsahuje žádné citlivé údaje** – jméno, rodné číslo, datum narození, adresu, telefon, e-mail ani číslo "
-                   "pojištěnce. Jména v běžném textu automatická kontrola nepozná.")
+                   "pojištěnce.")
     ok = st.checkbox("Zkontroloval(a) jsem text a neobsahuje jméno ani jiné identifikační údaje. "
-                     "Souhlasím s jeho odesláním do cloudové služby OpenAI k vyhodnocení.", key=f"{p}_report_ok")
+                     "Souhlasím s jeho odesláním do cloudové služby k vyhodnocení.", key=f"{p}_report_ok")
     ready = ok and bool(text.strip())
     st.markdown(SEARCH_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
@@ -273,21 +279,23 @@ def step_detail() -> None:
         st.rerun()
 
 
-def _doctor_results(studies, profile) -> None:
+def _doctor_results(studies, profile) -> list:
     p = "doc"
     results = match(studies, profile)
     groups = {s: [r for r in results if r.status == s] for s in (STATUS_CANDIDATE, STATUS_VERIFY, STATUS_EXCLUDED)}
     targeted_verify = [r for r in groups[STATUS_VERIFY] if r.targeted]
     other_verify = [r for r in groups[STATUS_VERIFY] if not r.targeted]
+    sections = [("Kandidáti", groups[STATUS_CANDIDATE]), ("K ověření", targeted_verify),
+                (OTHER_STUDIES, other_verify), ("Vyloučené", groups[STATUS_EXCLUDED])]
     tabs = st.tabs([f"🟢 Kandidáti ({len(groups[STATUS_CANDIDATE])})", f"🟡 K ověření ({len(targeted_verify)})",
-                    f"🟡 Napříč diagnózami ({len(other_verify)})", f"🔴 Vyloučené ({len(groups[STATUS_EXCLUDED])})"])
+                    f"🟡 {OTHER_STUDIES} ({len(other_verify)})", f"🔴 Vyloučené ({len(groups[STATUS_EXCLUDED])})"])
 
     def result_list(items, allow_referral: bool):
         if not items:
             st.info("Žádná studie v této skupině.")
         for r in items:
             with st.container(border=True):
-                render_result(r)
+                render_result(r, profile=profile)
                 if allow_referral and st.button("✉️ Připravit referral", key=f"{p}_ref_{r.study.study_id}"):
                     ss[f"{p}_referral"] = r.study.study_id
 
@@ -298,7 +306,7 @@ def _doctor_results(studies, profile) -> None:
 
     selected = next((r for r in results if r.study.study_id == ss.get(f"{p}_referral")), None)
     if not selected:
-        return
+        return sections
     st.divider()
     st.markdown(f"### ✉️ Referral – {selected.study.acronym}")
     ref = build_referral(selected, profile)
@@ -322,11 +330,13 @@ def _doctor_results(studies, profile) -> None:
         st.metric("Čas od začátku do odeslání referral", f"{time.time() - ss.get(f'{p}_t0', time.time()):.0f} s")
         for k in (f"{p}_referral", subj_key, body_key):
             ss.pop(k, None)
+    return sections
 
 
-def _patient_results(studies, profile) -> None:
+def _patient_results(studies, profile) -> list:
     results = [r for r in match(studies, profile) if r.status in (STATUS_CANDIDATE, STATUS_VERIFY)]
     targeted = [r for r in results if r.targeted]
+    others = [r for r in results if not r.targeted]
     if not profile.icd10:
         st.info("Chybí diagnóza – doplňte ji v údajích o nemoci, pak vám ukážeme odpovídající studie.")
     elif not targeted:
@@ -334,16 +344,27 @@ def _patient_results(studies, profile) -> None:
                 "zda by pro vás nebyla vhodná jiná studie.")
     for r in targeted:
         with st.container(border=True):
-            render_result(r, lay=True)
+            render_result(r, lay=True, profile=profile)
             sc = [c for c in r.study.contacts if c.role == "SC" and c.email]
             if sc:
                 st.caption("Kontakt na studijní tým (doporučujeme nejprve probrat s ošetřujícím lékařem): "
                            + ", ".join(f"{c.name} <{c.email}>" for c in sc))
-    with st.expander(f"Studie napříč diagnózami ({len(results) - len(targeted)})"):
-        st.caption("Tyto studie (často fáze I) nejsou zaměřené na konkrétní diagnózu. Jejich vhodnost může posoudit jen lékař.")
-        for r in results:
-            if not r.targeted:
-                st.markdown(f"- **{r.study.acronym}** – {r.study.indication}")
+    with st.expander(f"{OTHER_STUDIES} ({len(others)})"):
+        st.caption("Tyto studie (často fáze I) nejsou zaměřené na jednu konkrétní diagnózu. Jejich vhodnost může posoudit jen lékař.")
+        for r in others:
+            st.markdown(f"- **{r.study.acronym}** – {r.study.indication}")
+    return [("Studie zaměřené na vaši diagnózu", targeted), (OTHER_STUDIES, others)]
+
+
+def _pdf_download(profile, sections, lay: bool) -> None:
+    try:
+        from trialink.report_pdf import build_pdf
+        data = build_pdf(profile, sections, lay=lay)
+    except ImportError:
+        st.caption("Export do PDF není dostupný (chybí knihovna fpdf2).")
+        return
+    st.download_button("📄 Stáhnout výsledky (PDF)", data=data, mime="application/pdf", key="wiz_pdf",
+                       file_name=f"trialink-vysledky-{date.today():%Y-%m-%d}.pdf")
 
 
 def step_results(studies) -> None:
@@ -355,10 +376,12 @@ def step_results(studies) -> None:
         return
     st.button("✏️ Upravit údaje", on_click=_go, args=("detail",), key="wiz_edit")
     if lay:
-        _patient_results(studies, profile)
+        sections = _patient_results(studies, profile)
     else:
-        _doctor_results(studies, profile)
+        sections = _doctor_results(studies, profile)
         st.caption(f"Datum hodnocení: {date.today():%d. %m. %Y}")
+    st.divider()
+    _pdf_download(profile, sections, lay)
 
 
 def _scroll_to_top() -> None:

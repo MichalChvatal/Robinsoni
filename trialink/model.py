@@ -56,6 +56,16 @@ def normalize_icd(code: str | None) -> str | None:
     return c or None
 
 
+# MKN-10 sites occurring in one sex only (female / male genital organs).
+SEX_SPECIFIC_SITES = {"F": ("C51", "C52", "C53", "C54", "C55", "C56", "C57", "C58"), "M": ("C60", "C61", "C62", "C63")}
+SEX_LABELS = {"F": "žena", "M": "muž"}
+
+
+def sex_for_diagnosis(icd: str | None) -> str | None:
+    code = normalize_icd(icd) or ""
+    return next((sex for sex, sites in SEX_SPECIFIC_SITES.items() if code.startswith(sites)), None)
+
+
 def normalize_variant(variant: str | None) -> str | None:
     """'p.(Gly12Cys)', 'p.G12C', 'g12c' -> 'G12C'. Unknown formats are upper-cased unchanged."""
     if not variant:

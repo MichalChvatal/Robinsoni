@@ -13,10 +13,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from trialink.catalog import load_catalog  # noqa: E402
 from trialink.dictionaries import ICD_NAMES, TopoMorphoIndex, diagnosis_label, format_morpho, histology_from_morpho, load_file  # noqa: E402
-from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_LABELS, STATUS_VERIFY, CohortResult  # noqa: E402
+from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_LABELS, STATUS_VERIFY, CohortResult, sex_caution  # noqa: E402
 from trialink.lay_terms import TOOLTIPS  # noqa: E402
 from trialink.model import (  # noqa: E402
-    BIOMARKER_STATUSES, EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS, BiomarkerResult, PatientProfile, TherapyEpisode, normalize_icd,
+    BIOMARKER_STATUSES, EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS, SEX_LABELS, BiomarkerResult, PatientProfile, TherapyEpisode,
+    normalize_icd, sex_for_diagnosis,
 )
 
 load_dotenv()
@@ -152,10 +153,13 @@ def biomarker_column_config():
     }
 
 
-def render_result(r: CohortResult, *, lay: bool = False) -> None:
+def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None) -> None:
     s = r.study
     st.markdown(f"**{STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
-    st.caption(f"{STATUS_LABELS[r.status]} · {s.indication}" + ("" if r.targeted else " · studie napříč diagnózami"))
+    st.caption(f"{STATUS_LABELS[r.status]} · {s.indication}" + ("" if r.targeted else " · studie pro více druhů nádorů"))
+    note = sex_caution(r, profile) if profile else None
+    if note:
+        st.warning(note)
     cols = st.columns(3)
     with cols[0]:
         st.markdown("**Splněno**" if not lay else "**Odpovídá**")
@@ -288,16 +292,17 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     setting = st.radio("Jaká léčba je plánovaná teď?" if not lay else "Jaká léčba vás teď čeká?", _opt(SETTINGS),
                        format_func=_fmt(SETTINGS), key=f"{prefix}_setting", horizontal=True,
                        help=tip("paliativni") if lay else None)
-    c1, c2 = st.columns(2)
-    lines = c1.selectbox(
+    st.write("")
+    lines = st.selectbox(
         "Počet již podaných linií léčby pokročilého onemocnění" if not lay
         else "Kolikrát už jste dostal(a) léčbu kvůli pokročilé (metastatické) nemoci?",
         [None, *range(0, 11)], key=f"{prefix}_lines", help=tip("linie"),
         format_func=lambda v: UNKNOWN if v is None else ("žádnou" if v == 0 else (f"{v}×" if lay else f"{v}. linie")))
+    st.write("")
     therapy_modes = {"none": "Zatím žádná léčba" if lay else "Žádná předchozí léčba", "list": "Vypsat léky / režimy"}
-    therapy_mode = c2.radio(
+    therapy_mode = st.radio(
         "Jakou léčbu už jste podstoupil(a)?" if lay else "Předchozí systémová léčba", _opt(therapy_modes),
-        format_func=_fmt(therapy_modes), key=f"{prefix}_ther_mode",
+        format_func=_fmt(therapy_modes), key=f"{prefix}_ther_mode", horizontal=True,
         help="Některé studie vyžadují nebo naopak vylučují určitou předchozí léčbu (např. FOLFOX, Kadcyla).")
     therapies = None if therapy_mode is None else []
     if therapy_mode == "list":
@@ -315,12 +320,18 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
                               num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch", column_config=biomarker_column_config())
 
     st.markdown("#### 5 · Další kritéria" if not lay else "#### 5 · Celkový stav")
+    implied_sex = sex_for_diagnosis(diagnosis)
+    if implied_sex and f"{prefix}_sex" not in ss:
+        ss[f"{prefix}_sex"] = implied_sex
     c1, c2, c3, c4 = st.columns(4)
     ecog = c1.selectbox("ECOG", [None, 0, 1, 2, 3, 4], format_func=lambda v: UNKNOWN if v is None else str(v), key=f"{prefix}_ecog", help=tip("ECOG"))
     age = c2.number_input("Věk", 0, 120, key=f"{prefix}_age", **({} if f"{prefix}_age" in ss else {"value": None}))
     sex = c3.selectbox("Pohlaví", [None, "F", "M"], format_func=lambda v: {None: UNKNOWN, "F": "žena", "M": "muž"}[v], key=f"{prefix}_sex")
     swallow = c4.selectbox("Může polykat tablety?", [None, "ano", "ne"], format_func=lambda v: UNKNOWN if v is None else v,
                            key=f"{prefix}_swallow", help=tip("polykani"))
+    if implied_sex and sex and sex != implied_sex:
+        st.warning(f"Diagnóza {diagnosis_label(diagnosis)} se týká pouze pohlaví „{SEX_LABELS[implied_sex]}“ – "
+                   "zkontrolujte prosím diagnózu nebo pohlaví.")
 
     p = PatientProfile(
         icd10=diagnosis, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
