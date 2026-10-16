@@ -31,8 +31,22 @@ def _doctor_with_case(case: str) -> AppTest:
 @requires_catalog
 def test_home_renders_role_choice():
     at = _run()
-    assert "TriaLink" in at.title[0].value
+    assert "TriaLink" in at.button(key="wiz_home").label
     assert {b.key for b in at.button} >= {"wiz_role_doc", "wiz_role_pat"}
+
+
+@requires_catalog
+def test_trialink_title_goes_home():
+    at = _doctor_with_case("Case 1 – CRC, KRAS G13D, metastatický")
+    _click(at, "wiz_home")
+    assert "wiz_step" not in at.session_state and "doc_icd" not in at.session_state
+
+
+@requires_catalog
+def test_results_offer_pdf_export():
+    at = _doctor_with_case("Case 1 – CRC, KRAS G13D, metastatický")
+    _click(at, "wiz_search")
+    assert at.get("download_button")
 
 
 @requires_catalog
