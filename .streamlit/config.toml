@@ -1,0 +1,9 @@
+[browser]
+gatherUsageStats = false
+
+[server]
+maxUploadSize = 1
+runOnSave = false
+
+[client]
+toolbarMode = "viewer"

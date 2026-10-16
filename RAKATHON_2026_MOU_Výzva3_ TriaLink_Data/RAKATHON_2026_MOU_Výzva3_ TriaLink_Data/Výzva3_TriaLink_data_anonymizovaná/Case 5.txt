@@ -1,0 +1,101 @@
+Case 1, karcinom prsu
+ročník 1977, žena
+
+
+
+
+Stagingové vyšetření: 
+CT hrudníku, břicha a pánve, 1. 10. 2026
+Plíce bez ložiskových změn či metastatického rozsevu bilat., pleura intaktní, bez výpotku. Mediastinum a hilové uzliny bez patologické lymfadenopatie.
+Játra přiměřené velikosti, parenchym bez ložiskových lézí suspicious z metastáz. Nadledviny bpn. Slezina, pankreas, ledviny normálního nálezu. V retroperitoneu a pánvi lymfatické uzliny nezvětšeny. Skelet bez osteolytických či osteoblastických metastatických lézí.
+Lokální nález: V horním zevním kvadrantu pravého prsu nepravidelné laločnaté ložisko velikosti 54 × 42 mm infiltrující žlázový parenchym (cT3). V pravé axile zastižena susp. patologicky změněná lymfatická uzlina s oploštělým kortexem velikosti 22 mm v podélné ose (cN1).
+Závěr: Lokálně pokročilý karcinom pravého prsu cT3 cN1 bez průkazu vzdálené diseminace (cM0), klinické stádium IIIB (či IIIA dle TNM 8).
+
+Mamografie (MG) bilat., dne 15. 9. 2026
+Indikace: Palpační rezistence v pravém prsu, nově zjištěná.
+Popis: Fertilní typ parenchymu, žláza denzní (ACR C – heterogenně denzní), což limituje senzitivitu nativního mamografického vyšetření.
+Vpravo: V horním zevním kvadrantu (HZK) se diferencuje neostře ohraničené, spikulovité zastínění vysoké denzity velikosti cca 52 × 40 mm, s patrnou distorzí architektoniky a retrakcí okolních ligament. V ložisku a jeho těsném okolí přítomny amorfní a jemně pleomorfní mikrokalcifikace v segmentálním uspořádání. Kůže a mamila bez patrného ztluštění či retrakce na MG. V pravé axile zachycen stín denzní, zvětšené lymfatické uzliny s vymizelým hilovým projasněním (cca 22 mm).
+Vlevo: Bez patrných spikulovitých ložisek, patologických shluků mikrokalcifikací či ložiskových distorzí. Levá axila bez patologického zastínění.
+Závěr:
+Vpravo suspektní maligní tumor HZK pravého prsu charakteru BI-RADS 5. Suspektní axilární lymfadenopatie vpravo.
+Vlevo nález stacionární, bez známek malignity (BI-RADS 1).
+Klasifikace: BI-RADS 5 vpravo, BI-RADS 1 vlevo. Doporučeno doplnění cíleného UZ a bioptická verifikace.
+
+Ultrazvukové vyšetření prsů a regionálních uzlin (UZ), dne 15. 9. 2026
+Indikace: Cílené vyšetření k MG nálezu, palpační rezistence HZK vpravo.
+Popis:
+Pravý prs: Na č. 10–11, ve vzdálenosti 4 cm od mamily, se zobrazuje nepravidelné, hypoechogenní, nehomogenní laločnaté ložisko se spikulovitými a angulárními okraji, velikosti 54 × 41 × 38 mm (orientace ložiska je „taller-than-wide“ ve vertikálním průmětu). V celém objemu ložiska je patrný akustický stín dorzálně a v barevném dopplerovském mapování (CDI) výrazná vnitřní patologická neovaskularizace. Tumor zasahuje do podkoží, pektorální fascie je t.č. intaktní, bez přímé invaze.
+Pravá axila: Na úrovni levelu I zobrazena patologicky změněná lymfatická uzlina velikosti 23 × 15 mm, zaokrouhleného tvaru (L/T poměr < 2), s asymetricky ztluštělým hypoechogenním kortexem (> 5 mm) a excentricky utlačeným tukovým hilem, s periferním typem vaskularizace. Další uzliny v úrovni I a II do 10 mm bez jednoznačně maligních rysů.
+Levý prs a levá axila: Bez ložiskových změn solidního či cystického charakteru, dukty nerozšířeny. Levá axila bez lymfadenopatie (uzliny benigního tvaru s tukovým centrem). Supra- a infraklavikulární uzliny oboustranně sonograficky negativní.
+
+Intervence (20. 9. 2026):
+Pod sonografickou kontrolou provedena tru-cut biopsie tumoru v pravém prsu (3 válečky žlázy, zaveden titanový klip do středu ložiska) a core needle biopsie suspektní uzliny v pravé axile (1 váleček, zaveden titanový klip). Zákrok proběhl bez komplikací.
+Závěr:
+Jednoznačně maligní ložisko HZK pravého prsu (vel. 54 mm, cT3) s ipsilaterální axilární lymfadenopatií (cN1) – BI-RADS 5.
+Levý prs a uzlinové spády vlevo bez patologie – BI-RADS 1.
+
+
+
+
+
+
+Rodinná a sociální anamnéza
+RA: V rodině matka karcinom prsu v 52 letech, teta z matčiny strany karcinom ovária v 48 letech. Splněna indikační kritéria pro prediktivní genetické testování hereditárního syndromu nádorů prsu a vaječníků (BRCA1/2 a panel dalších genů).
+SA: Žije s manželem a 2 dětmi, t.č. pracuje jako administrativní pracovnice. Nekuřačka, alkohol příležitostně.
+
+Osobní anamnéza
+Diabetes mellitus 2. typu kompenzovaný na PAD (metformin 850 mg 1-0-1).
+Arteriální hypertenze na monoterapii ACEi.
+
+
+
+Histologie z iniciální tru-cut biopsie, 20. 9. 2026
+Předmět vyšetření a lokalizace:
+č. 1 – Vápenaté ložisko / tumor pravého prsu, tru-cut biopsie (3 válečky žlázy s ložiskem tumoru, zaveden titanový klip)
+č. 2 – Punkční biopsie suspektní uzliny v pravé axile pod USG kontrolou (1 váleček tkáně, zaveden klip)
+Makroskopický nález:
+Válečky šedorůžové tkáně délky 12, 14 a 15 mm, průměru do 1 mm.
+Váleček šedorůžové tkáně délky 10 mm.
+
+Mikroskopický nález:
+Ad 1) Válečky z prsu: Reprezentativní tkáň mléčné žlázy s infiltrací invazivním karcinomem NST (duktální), difuzně solidně uspořádaný, s četnými syncytii a geografickými nekrózami. Jaderný pleomorfismus je vysoký (skóre 3), mitotická aktivita výrazná (> 20 mitóz na 10 HPF, skóre 3), tubulární formace chybí (skóre 3). Přítomna výrazná lymfocytární infiltrace stromatu (stromal TILs: 40 %).
+Histologický stupeň (grade): G3 (skóre 9 dle Nottinghamu).
+Imunohistochemické stanovení prediktivních markerů:
+ER: negativní (1 %, intenzita 0)
+PR: negativní (0 %, intenzita 0)
+Ki-67: 85 % (výrazná proliferační frakce)
+PD-L1 (SP142 / 22C3): CPS = 15 (pozitivní, CPS ≥ 10)
+
+Ad 2) Punkční biopsie axilární uzliny: Zastižena lymfoidní tkáň uzliny zčásti nahrazená metastázou málo diferencovaného karcinomu NST identické morfologie, G3.
+
+HER2 vyšetření
+HER-2 imunohistochemicky:
+Metoda: Ventana HER2 (4B5)
+Popis: Zhodnocena membránová reakce v oblasti invazivního karcinomu. Pozorována pouze slabá, nekompletní membránová pozitivita v méně než 10 % nádorových buněk.
+Klasifikace: HER2 0 (negativní)
+
+Závěr:
+Invazivní karcinom pravé mammy je imunohistochemicky triple negativní (ER 0 %, PR 0 %, HER2 0), fenotyp TNBC.
+
+
+
+
+Stav pacienta a klinické vyšetření
+Karnofsky index: 90 %
+ECOG PS: 0
+
+Subjektivní vyšetření: Cítí se přiměřeně, bez váhového úbytku, bez dechových potíží, kašel neguje. Bolesti zad, kostí či kloubů neguje. Hmatá si rezistenci v pravém prsu a mírný tlak v pravé axile. Stolice a močení v normě.
+
+Objektivní vyšetření: Afebrilní, eupnoická, kardiopulmonálně kompenzovaná, břicho klidné, bez hmatné organomegalie. Lokálně: Pravý prs asymetrický, v HZK tuhá palpační rezistence cca 5 cm, kůže bez ulcerace či pomerančové kůry, volně posunlivá proti spodině. V pravé axile hmatná jedna tuhá, částečně fixovaná uzlina cca 2 cm. Levý prs a levá axila bez hmatné patologie. Supra-/infraklavikulární uzliny nehmatné.
+
+
+Diagnostický souhrn
+Invazivní duktální karcinom NST pravého prsu, high-grade (G3), cT3 cN1 M0 (iniciální klinické stádium IIIB/IIIA), dg. 9/2026.
+Biologický subtyp: Triple negativní karcinom prsu (TNBC), stromal TILs 40 %.
+Prediktivní markery: ER 0 %, PR 0 %, Ki-67 85 %, HER2 0 (negativní), PD-L1 pozitivní (CPS 15).
+Genetika: Odeslána na genetickou konzultaci a vyšetření panelu hereditárních genů (BRCA1/2).
+- v plánu zahájení neoadjuvantní terapie
+
+
+Terapeutická rozvaha
+Jedná se o mladou pacientku (49 let, r. 1977) v dobrém celkovém stavu (ECOG 0) s lokálně pokročilým, biologicky agresivním onemocněním (TNBC, G3, Ki-67 85 %, cT3 cN1 M0, PD-L1 pozitivní). V plánu zahájení neoadjuvatní terapie

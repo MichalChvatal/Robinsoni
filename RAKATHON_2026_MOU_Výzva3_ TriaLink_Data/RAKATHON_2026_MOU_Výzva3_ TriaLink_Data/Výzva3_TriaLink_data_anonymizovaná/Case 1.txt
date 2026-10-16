@@ -1,0 +1,67 @@
+Case 1, CRC
+ročník 1972, muž
+
+CT hrudníku a břicha, dne 13.6.2026
+V oblasti plic vícečetné drobné metastázy, do 10mm
+V oblsati jater dvě ložiska, v levém laloku 43mm, v prvém laloku 23mm
+
+
+Rodinná a sociální anamnéza:
+V rodině se nádorová onemocnění nevyskytují. Pacient žije v domácnosti s rodinou, je v důchodu
+
+Osobní anamnéza:
+Arteriální hypertenze
+
+
+Histologie: 
+Předmět vyšetření a lokalizace: 
+histol.: resekát střeva - levostranná hemikolektomie
+
+Trvání nemoci: 
+Předchozí histologická vyšetření: 
+Fixační tekutina: 
+
+Klinická diagnoza a dotaz:  
+karcinom lienáální flexury, stenozující
+
+Makroskopický nález:
+1) L.sin. colon: resekát střeva o délce 250 s přilehlým omentem velikosti 240 x 190 mm. Na povrchu omentum hladké, volně pohyblivé, bez zřetelného prorůstání tumoru. Tumor o velikosti 70 x 55 mm cirkulárně obturuje lumen střeva, je květákovitého vzhledu. Nejbližší resekční okraj je 60 mm. 
+Odebrán nativní materiál pro tkáňovou banku.
+Odebrán nativní materiál na p53.
+
+Mikroskopický nález:
+Ad 1) 1: para normal (bližší res. okraj): normální sliznice colon
+2: para tumor: středně diferencovaný adenokarcinom, rozvětvené tubulární formace, místy s cystickou dilatací, s nekrózami typu "dirty necrosis", zasahující do svalové vrstvy.
+3: para výzkum: adenokarcinom.
+4,5: Tu transvers. ř. (půlený řez), 6: Tu směrem k bližšímu okraji, 7,8: Tu směrem ke vzdálenějšímu okraji (půlený řez): středně diferencovaný adenokarcinom, hlenotvorba cca 40%. Invaze do perikolického tuku.
+9-33(MC): LU (28=3LU): počet uzlin: 27, aktivované uzliny, bez metastáz
+
+Závěr:
+Resekát levostrané hemikolektomie:
+Kolorektální adenokarcinom, low grade, prorůstající do perikolického tuku.
+Resekční linie: volné.
+Angioinvaze: NE.
+Regionální lymfatické uzliny: negativní (0/27).
+
+
+KLASIFIKACE:
+topografie(ICD-O-3): C186, morfologie(ICD-O-3): 8140/32, DG: C186, pTNM(8): pT3 pN0 (uzliny celkem [poz/vyš]: 0/27),  L0 V0 R0
+
+
+
+
+Karnofsky index: 100 %.
+
+Subjektivní vyšetření: 
+cítí se dobře,  bez nevolnosti, chuť do jídla dobrá, nehubne, dýchá se dobře, stenokardie nebo palpitace neguje, teploty, nachlazení neguje, stolice je pravidelná, formovaná, bez krve nebo hlenu, močí bez dysúrií, pálení nebo řezání, bolesti neguje
+
+Objektivní vyšetření: 
+ECOG PS0
+afebrilní, bez známek cyanózy nebo ikteru, eupnoický, dú čistá, dýchaní čisté alveolární, bez vedlejších fenoménů, AS reg., ozvy ohraničené, bez přítomnosti šelestu. Břicho: v niveau, klidné, prohmatné, nebolestivé, bez hmatné rezistence, játra v oblouku, slezina nenaráží, peristaltika fysiol., DKK bez otoků, orientačně neurologicky bez zjevné patologie, bez periferní lymfadenopatie
+
+
+Diagnostický souhrn:
+Karcinom colon - lienální flexura, stenozující, pT3 pT0 (0/27) M1 (meta jater, plic), dg. 6/2026
+- prediktiva: KRAS mut G13D, BRAF wt, MMR proficientní, HER2 negativní
+- stp. levostranné hemokilektomii 24.6.2026
+- v plánu zahájení 1. lini systémové léčby

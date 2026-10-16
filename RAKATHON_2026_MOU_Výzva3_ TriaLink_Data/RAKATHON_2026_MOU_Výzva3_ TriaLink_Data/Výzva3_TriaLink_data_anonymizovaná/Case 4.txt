@@ -1,0 +1,123 @@
+Case 1, karcinom prsu
+ročník 1977, žena
+
+
+
+
+CT hrudníku a břicha, 1.5.2025
+Nově v plicích vícečetná ložiska, bilaterálně, vlevo max 33mm, vpravo 11mm, vpravo v hilu lymfadenopatie. V mediastinu t.č. bez patol. LU. Není fluidothorax. V játerch vícečetné  meta ložisek bilobárně. Difuzní postižení skeletu.
+Z: TU infiltrace plic vpravo, infiltrující struktury hilu a zejména horní lalok, infiltrace nadledvin bilat
+
+
+
+
+CT hrudníku a břicha, dne 26.6.2026
+progrese meta plic bilat, dorbný lfuidotorax vlevo, progrese meta jater, skelet stacionární
+
+
+
+
+Rodinná a sociální anamnéza:
+V rodině matka karcinom prsu v 72 letech, teta z matčiny strany karcinom ovária v 68 letech
+Osobní anamnéza:
+diabetes melliturs 2 typu, na PADech
+
+
+
+
+histologie 10.2.2024
+Poznámka: 
+Předmět vyšetření a lokalizace:  Prosím o laskavé hsitologické vyšetření
+č1 - TAD pravé axily, jodové zrno, klip
+č2 - SN pravé axily
+č3 - resekát pravé mammy, zelené stehvy zvykle, fialový k mamile, mag zrno,1 klip
+Děkuji
+
+Trvání nemoci: 
+Předchozí histologická vyšetření: 
+Fixační tekutina: 
+
+Klinická diagnoza a dotaz:  Ca mammae l. dx. duplex.
+Parciální mastektomie vpravo + TAD pravé axily
+Prosím o zhodnocení, zde jsou při bradavce histol. známky pouzdra po druhém klipu. Děkuji
+
+Makroskopický nález:
+3) Resekát mam. l. dx., stehy zvykle, fialový k mammille: stehy orientovaný resekát velikosti 75 x 55 x 55 mm, pohmatově centrum tužší. Kraniální plocha značena červeně, ventrální modře, u fialového stehu žlutě.
+Po fixaci a prokrájení materiálu paralelními sagitálními řezy prochází celým resekátem od mediálního k laterálnímu okraji spíše měkká fibróza, více lokalizovaná dorzálně, cípovitě vybíhající do okolí a zasahující místy do dorsokraniálního a dorzokaudálního okraje. Zrno zastiženo v laterální části, v místě krvácení. Žláza ventrálně od fibrózy je tuková. Klipy nebyly makroskopicky identifikovány. (dr. Babánková).
+
+Mikroskopický nález:
+Ad 1) 1,2: TAD: uzlina s klipem, histiocytární reakcí a metastázou solidně rostoucího karcinomu prům. 2,5 mm s nízkou jadernou polymorfií. Čepy nádoru v aferentních lymfatikách
+Ad 2) 1-5: SNB: (1,2=1LU; 3-5=druhá LU v okraji částky): histiocytární reakce, fibróza, v IHC (CK19) potvrzeny mikrometastázy a ITC v bl. 1,2, morfologie identická. Bl. 3-5 negativní. 
+Ad 3) 1,2: mediál. okraj: (1/2 řezy): 3: fibróza + dorzokaudál. okraj: inaktivní mléčná žláza
+4-13: dorzální polovina: (4,5; 6,7; 8,9; 10,11; 12,13=1/2 řezy): involuční mléčná žláza, rozsáhlé oblasti neovaskularizace dosahující fokálně dorzálního okraje, fokálně rezidua CIS s dystrofickými změnami.
+14,15: v místě zrna: (1/2 řezy): lůžko tumoru, dystrofická rezidua CIS, s kolonizací acinů (verifikováno p40, calponin) kolonizace drobného fibroadenomu CIS, okrajově poudro klipu. V bl. 15 mikroskopická rezidua invazivního karcinomu s nízkou jadernou polymorfií ve formě drobných buněčných skupinek, nejde o lymfangioinvazi (verifikováno D2.40). V IHC je invazivní složka HER2 1+, ER a PR+, v CIS je mix HER2 0-3+, ER+ a -
+16,17: laterál. okraj: obdobný nález - reziduální karcinomová infiltrace,1 mm k okraji. ER+ HER2 1+
+Přešetření imunofenotypu provedeno z reziduální uzlinové metastázy
+Imunohistochemické stanovení receptorů nádorových buněk bl.č.1-1: 
+ER (SP1) Roche, PR (16, SAN27) Novocastra, Ki67 (30-9) Roche
+ER: 100%
+PR: 100%
+Ki67 pod 1% 
+
+Závěr:
+Částečná regrese mamárního karcinomu a jeho uzlinových metastáz po neoadjuvanci s cílenou anti HER2 léčbou. Lůžko tumoru v dorsálním okraji, těsný (1 mm) laterální okraj pro reziduální invazivní tumor. CAVE - nalezen klip při zrnu, druhý klip v prsu ani reakci na něj se nalézt nepodařilo. Materiál je vzhledem k multicentricitě a částečné regresi značně nepřehledný, případná dvě ložiska nelze bezpečně odlišit. TRG=3 (Chevalier).
+Reziduální metastáza v TAD uzlině a mikrometastázy v 1/2 SNB. V metastatickém reziduu ER i PR 100%, Ki67 pod 1%, HER2 pozitivní (3+).
+KLASIFIKACE:
+topografie(ICD-O-3): C509 (vpravo), morfologie(ICD-O-3): 8500/39, DG: C509, pTNM(8): ypT2 ypN1(sn) (sn uzliny [poz/vyš]: 1/3),  L0 V0 RX,  3 (TRG)
+
+
+
+
+
+HER2 vyšěetření
+Her-2 imunohistochemicky:
+Závěr:  Exprese Her-2 proteinu je nejednoznačná.
+Popis:  parafinového materiálu byla provedena imunohistochemická reakce s certifikovanou primární monoklonální protilátkou proti HER2 proteinu (VENTANA HER2(4B5)) s následnou vizualizací proběhlé reakce. Byla hodnocena pouze membránová pozitivita v oblasti invazivního karcinomu. 
+Přítomna silná souvislá membránová pozitivita v cca 90 % nádorových buněk.
+Klasifikace: 3+
+
+Her-2 ISH:
+Závěr:  Pozitivní (amplifikace).
+Popis:  Vyšetření metodou FISH pomocí certifikovaného kitu HER2 IQFISH pharmDX - z parafinového materiálu byla provedena in situ hybridizace s centromerickou fluorescenčně značenou sondou proti chromosomu 17 (green) a lokus specifickou fluorescenčně značenou sondou proti genu HER2/neu (red). V nádorové populaci byly nalezeny buňky s dobře rozlišitelnými oběma typy signálů, hodnoceno 20 sousedících buněk.
+Počet signálů CEN-17 je 1-3, průměrně na jádro 2,0.
+Počet HER2 signálů je 1-8, průměrně na jádro 4,3.
+Poměr počtu kopií genu HER2/neu a centromer chromozomu 17 je 2,15.
+Klasifikace: amplifikace
+
+Závěr:
+Invazivní karcinom pravé mammy je HER2 pozitivní (3+/FISH+).
+
+
+
+
+
+Karnofsky index: 90 %.
+Subjektivní vyšetření: 
+cítí se dobře, je únava, nehubne, nezrvací, dýchýá se dobře, stenokardie nebo palpitace neguje, teploty, nachlazení neguje, stolice je pravidelná, formovaná, bez krve nebo hlenu, močí bez dysúrií, pálení nebo řezání, nově jsou boelsti zad
+
+Objektivní vyšetření: 
+ECOG PS0
+afebrilní, bez známek cyanózy nebo ikteru, eupnoická, dú čistá, dýchaní čisté alveolární vlevo, AS reg., ozvy ohraničené, bez přítomnosti šelestu. Břicho: v niveau, klidné, prohmatné, nebolestivé, bez hmatné rezistence, játra v oblouku, slezina nenaráží, peristaltika fysiol., DKK bez otoků, orientačně neurologicky bez zjevné patologie, bez periferní lymfadenopatie
+
+
+
+
+Diagnostický souhrn:
+karcinom prsu vpravo, středně diferencovaný invazivní duktální karcinom G2, cT2 cN1 (2 uzliny) M0, IIB kl. stádium, dg. 1/2024
+- prediktiva: ER 80%, PR 90%, Ki67 10%, HER2 IHC 3+, FISH +
+- st.p. neoadjuvantní léčbě: - od 5/2/2026- neoadjuvantní podání 4x AC v DD režimu- následně paclitaxel weekly + PhesGo- ukončeno předčasně pro neuropatii s efektem částečné regrese
+- stp. pravostrane mastektomii se SNB, ypT2 ypN1(sn) (sn uzliny [poz/vyš]: 1/3) 2/2024, TRG=3 (Chevalier)
+- stp. adjuvantní léčby Kadcylou (trastuzumab-emtansin), od 5/2024 do 5/2025
+- stp. hormonální terapii Letrozol, od 5/2024 do 5/2025
+5/2025 diseminace - pícem játra, skelet
+- stp. 1. linii Enhertu (trastuzumab-deruxtecan), od 5/2025 do 5/2026, efekt: inicálně PR
+6/2026 progrese onemocnění - plíce, játra
+- v plánu další linie léčby
+
+
+
+
+Rozvaha: 
+Pacientka s primárně luminálním B / HER2-pozitivním invazivním duktálním karcinomem pravého prsu (NST, G2, ER 80 %, PR 90 %, Ki-67 10 %, HER2 3+/FISH+), iniciálně klinické stádium IIB (cT2 cN1 M0, dg. 1/2024).
+Po neoadjuvantní chemo- a cílené léčbě (ddAC následované weekly paklitaxelem s Phesgo, zkráceno pro neurotoxicitu) a pravostranné mastektomii se SNB (ypT2 ypN1(sn) 1/3, TRG 3) absolvovala adjuvantní léčbu T-DM1 (Kadcyla) a letrozolem do 5/2025. V 5/2025 došlo k diseminaci do plic, jater a skeletu (klinické stádium IV). Následně podána 1. linie paliativní léčby trastuzumab-deruxtekanem (Enhertu, 5/2025–5/2026).
+Aktuálně progrese onemocnění po selhání 1. linie systémové léčby metastatického onemocnění (a po předléčení dvěma anti-HER2 ADC). Pacientka je indikována k zahájení další linie systémové léčby, zvážení klinické studie
