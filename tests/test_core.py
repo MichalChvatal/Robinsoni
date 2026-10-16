@@ -1,4 +1,5 @@
 import pytest
+from conftest import requires_export
 
 from trialink import sonis
 from trialink.catalog import load_catalog
@@ -40,6 +41,7 @@ def test_diagnosis_ranges():
     assert cats == ["C50"] and warnings
 
 
+@requires_export
 def test_real_export_all_quotes_verified():
     studies, report, issues = load_catalog()
     assert report.records == 41

@@ -1,8 +1,11 @@
 import pytest
+from conftest import requires_export
 
 from trialink.catalog import load_catalog
 from trialink.demo_cases import case1, case2, case3, case4, case5
 from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_VERIFY, evaluate_cohort, match
+
+pytestmark = requires_export
 
 
 @pytest.fixture(scope="module")
