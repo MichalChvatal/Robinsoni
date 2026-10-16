@@ -1,6 +1,7 @@
 """Shared Streamlit helpers. Patient data lives only in st.session_state (server RAM) and is cleared on reset."""
 from __future__ import annotations
 
+import base64
 import os
 import sys
 import time
@@ -108,6 +109,24 @@ def page_setup(title: str, prefix: str, *also_reset: str) -> None:
 def reset(prefix: str) -> None:
     for key in [k for k in st.session_state if k.startswith(prefix)]:
         del st.session_state[key]
+
+
+LOGO = Path(__file__).resolve().parent / "static" / "mou_logo.svg"
+
+
+def brand_header(key: str, on_home=None) -> bool:
+    """MOÚ logo + clickable TriaLink title. Returns True when the title was clicked."""
+    st.markdown(f"""<style>
+.st-key-{key} button {{padding: 0; min-height: 0;}}
+.st-key-{key} button p {{font-size: 2.6rem; font-weight: 700; line-height: 1.2;}}
+</style>""", unsafe_allow_html=True)
+    c_logo, c_title = st.columns([1, 5], vertical_alignment="center")
+    if LOGO.is_file():
+        logo = base64.b64encode(LOGO.read_bytes()).decode()
+        c_logo.html(f'<a href="https://www.mou.cz" target="_blank" rel="noopener"><img src="data:image/svg+xml;base64,{logo}" '
+                    'alt="Masarykův onkologický ústav" style="height:64px;width:auto;background:#fff;'
+                    'padding:6px 10px;border-radius:8px"></a>')
+    return c_title.button("TriaLink", key=key, type="tertiary", on_click=on_home, help="Zpět na úvod")
 
 
 def biomarker_rows(p: PatientProfile) -> list[dict]:
