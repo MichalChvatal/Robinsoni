@@ -7,31 +7,44 @@ from streamlit.testing.v1 import AppTest
 APP = Path(__file__).resolve().parent.parent / "app"
 
 
-def _run(page: str) -> AppTest:
+def _run(page: str = "Home.py") -> AppTest:
     at = AppTest.from_file(str(APP / page), default_timeout=60)
     at.run()
     assert not at.exception, at.exception
     return at
 
 
+def _click(at: AppTest, key: str) -> AppTest:
+    at.button(key=key).click().run()
+    assert not at.exception, at.exception
+    return at
+
+
+def _doctor_with_case(case: str) -> AppTest:
+    at = _run()
+    _click(at, "wiz_role_doc")
+    _click(at, "wiz_choice_report")
+    at.selectbox(key="doc_demo").select(case).run()
+    return _click(at, "wiz_demo")
+
+
 @requires_catalog
-def test_home_renders():
-    at = _run("Home.py")
+def test_home_renders_role_choice():
+    at = _run()
     assert "TriaLink" in at.title[0].value
+    assert {b.key for b in at.button} >= {"wiz_role_doc", "wiz_role_pat"}
 
 
 @requires_catalog
 def test_doctor_flow_case2_to_simulated_referral():
-    at = _run("pages/1_Lekar.py")
-    at.sidebar.selectbox[0].select("Case 2 – skvamózní ca jícnu, po 1. linii").run()
-    at.sidebar.button[0].click().run()
-    assert not at.exception, at.exception
+    at = _doctor_with_case("Case 2 – skvamózní ca jícnu, po 1. linii")
+    assert at.session_state["wiz_step"] == "detail"
+    _click(at, "wiz_search")
+    assert at.session_state["wiz_step"] == "results"
     text = " ".join(m.value for m in at.markdown)
     assert "MSD - jícen" in text
-    ref_buttons = [b for b in at.button if b.key == "doc_ref_2025/R46"]
-    assert ref_buttons
-    ref_buttons[0].click().run()
-    body = next(t for t in at.text_area if t.key == "doc_ref_body_2025/R46")
+    _click(at, "doc_ref_2025/R46")
+    body = at.text_area(key="doc_ref_body_2025/R46")
     assert "MSD - jícen" in body.value
     body.input(body.value + "\nDoplněk lékaře: prosím o rychlé posouzení.").run()
     send = [b for b in at.button if b.label == "Odeslat (simulace)"]
@@ -42,17 +55,33 @@ def test_doctor_flow_case2_to_simulated_referral():
 
 
 @requires_catalog
-def test_doctor_reset_clears_patient_state():
-    at = _run("pages/1_Lekar.py")
-    at.sidebar.selectbox[0].select("Case 1 – CRC, KRAS G13D, metastatický").run()
-    at.sidebar.button[0].click().run()
+def test_back_button_walks_history_and_keeps_form_values():
+    at = _doctor_with_case("Case 1 – CRC, KRAS G13D, metastatický")
+    _click(at, "wiz_search")
+    _click(at, "wiz_back")
+    assert at.session_state["wiz_step"] == "detail"
     assert at.session_state["doc_icd"] == "C186"
-    at.sidebar.button[1].click().run()
-    assert "doc_icd" not in at.session_state or not at.session_state["doc_icd"]
-    assert "doc_bio_init" not in at.session_state
+    assert at.session_state["doc_morpho"] == "81403"
+    for expected in ("report", "doc_choice", "role"):
+        _click(at, "wiz_back")
+        assert at.session_state["wiz_step"] == expected
 
 
 @requires_catalog
-def test_patient_page_renders():
-    at = _run("pages/2_Pacient.py")
-    assert at.title[0].value.startswith("🙂")
+def test_restart_clears_patient_state():
+    at = _doctor_with_case("Case 1 – CRC, KRAS G13D, metastatický")
+    assert at.session_state["doc_icd"] == "C186"
+    _click(at, "wiz_restart")
+    assert "doc_icd" not in at.session_state
+    assert "doc_bio_init" not in at.session_state
+    assert "wiz_role_doc" in {b.key for b in at.button}
+
+
+@requires_catalog
+def test_patient_without_report_goes_to_lay_form():
+    at = _run()
+    _click(at, "wiz_role_pat")
+    assert at.session_state["wiz_step"] == "report"
+    _click(at, "wiz_no_report")
+    assert at.session_state["wiz_step"] == "detail"
+    assert any(s.label.startswith("Kde nádor vznikl") for s in at.selectbox)

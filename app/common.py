@@ -93,12 +93,13 @@ def get_topo_morpho() -> tuple[TopoMorphoIndex | None, str]:
         return None, "nedostupný"
 
 
-def page_setup(title: str, prefix: str) -> None:
+def page_setup(title: str, prefix: str, *also_reset: str) -> None:
     st.set_page_config(page_title=f"TriaLink – {title}", page_icon="🔗", layout="wide")
     st.markdown("<style>.block-container{padding-top:1.2rem;max-width:1100px}</style>", unsafe_allow_html=True)
     last = st.session_state.get(f"{prefix}_last_seen")
     if last and time.time() - last > SESSION_TIMEOUT_S:
-        reset(prefix)
+        for p in (prefix, *also_reset):
+            reset(p)
         st.info("Relace vypršela – zadané údaje byly z paměti odstraněny.")
     st.session_state[f"{prefix}_last_seen"] = time.time()
 

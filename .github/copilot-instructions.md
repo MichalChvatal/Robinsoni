@@ -14,7 +14,7 @@ Webová aplikace (hackathon MVP) pro párování onkologických pacientů s klin
 
 ## Struktura
 - `trialink/` – jádro: `sonis.py` (parser exportu), `catalog.py` (studie+kritéria+kontakty, validace citací), `matching.py`, `therapies.py` (lék → skupina), `extraction.py`, `referral.py`, `db.py` (IRIS), `import_studies.py` (CLI), `demo_cases.py` (Case 1–5).
-- `app/` – Streamlit: `Home.py`, `pages/1_Lekar.py`, `pages/2_Pacient.py`, `common.py`.
+- `app/` – Streamlit: `Home.py` (průvodce), `wizard.py` (kroky Lékař/Pacient), `report_input.py` (soubor/fotka → text, lokální OCR), `common.py`, `pages/3_Sprava_studii.py`.
 - `tests/` – pytest; `test_cases.py` = regresní očekávání Case 1–5.
 
 ## Příkazy (Windows, z kořene repozitáře)
