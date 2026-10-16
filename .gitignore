@@ -1,2 +1,10 @@
 
 Robinson1.pem
+*.pem
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+trialink_import_report*.json
+~$*

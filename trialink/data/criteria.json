@@ -1,0 +1,326 @@
+{
+  "_meta": {
+    "description": "Navrh strukturovanych kriterii k exportu SONIS 2026-09-29. Kazda citace je overovana proti textu studie. Stav 'navrh' = ceka na kontrolu onkologem.",
+    "source": "KH_otevreny_nabor_k_2026-09-29.csv"
+  },
+  "studies": {
+    "2019/28A": {"review": "navrh", "cohorts": [{"id": "main", "label": "Retroperitoneální sarkom – neoadjuvance", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C48"], "quote": "Sarkom retroperitoneální, neoadjuvance"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["neoadjuvance"], "quote": "Sarkom retroperitoneální, neoadjuvance"},
+      {"id": "resek", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalizovane_resekabilni"], "quote": "Resekovatelný nádor"},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Věk ? 18 let"}
+    ]}]},
+    "2021/18F": {"review": "navrh", "cohorts": [{"id": "main", "label": "Fáze I – vyčerpaná standardní léčba", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C34", "C00", "C01", "C02", "C03", "C04", "C05", "C06", "C09", "C10", "C12", "C13", "C14", "C30", "C31", "C32", "C18", "C16", "C15", "C56", "C57", "C48", "C50"], "quote": "Pacient má histologicky potvrzenou diagnózu karcinomu"},
+      {"id": "age_min", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "ve věku 18-70 let"},
+      {"id": "age_max", "kind": "inclusion", "field": "age", "op": "<=", "value": 70, "quote": "ve věku 18-70 let"},
+      {"id": "exhausted", "kind": "inclusion", "field": "manual", "op": "review", "value": "Neexistuje standardní terapie nebo je neúčinná", "quote": "neexistuje standardní terapie nebo standardní způsob léčby je již neúčinný"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "Eastern Cooperative Oncology Group (ECOG) 0 nebo 1"},
+      {"id": "swallow", "kind": "inclusion", "field": "can_swallow", "op": "eq", "value": true, "quote": "Schopnost polykat."}
+    ]}]},
+    "2021/33": {"review": "navrh", "cohorts": [{"id": "main", "label": "Neskvamózní NSCLC s expresí c-Met, 2. a vyšší linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C34"], "quote": "plíce c-Met mutované, 2. a vyšší linie"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["adenokarcinom", "velkobunecny"], "quote": "histologicky dokumentovaný nekvamózní NSCLC"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "lokálně pokročilý nebo metastazuje"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [1, 99], "quote": "plíce c-Met mutované, 2. a vyšší linie"},
+      {"id": "cmet", "kind": "inclusion", "field": "manual", "op": "review", "value": "Nadměrná exprese c-Met (IHC, centrálně)", "quote": "Pacienti musí mít NSCLC s nadměrnou expresí c-Met"},
+      {"id": "egfr", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "EGFR"}, "quote": "aktivačními mutacemi EGFR nejsou způsobilí"},
+      {"id": "docetaxel", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["docetaxel"], "quote": "nesměl dostal předchozí léčbu docetaxelem"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "výkonnostní stav dle ECOG 0 až 1"}
+    ]}]},
+    "2022/26F": {"review": "navrh", "cohorts": [{"id": "main", "label": "Fáze I – pokročilé solidní nádory", "criteria": [
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "metastazujícími solidními nádory"},
+      {"id": "exhausted", "kind": "inclusion", "field": "manual", "op": "review", "value": "Vyčerpané nebo nevhodné dostupné linie léčby", "quote": "solidní tumory"}
+    ]}]},
+    "2022/41": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRC s KRAS G12C – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C18", "C19", "C20"], "quote": "kolorektum KRAS G12C, 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "Patologicky potvrzený metastatický kolorektální adenokarcinom"},
+      {"id": "kras", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "KRAS", "variant": "G12C"}, "quote": "adenokarcinom s mutací KRAS p.G12C"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "kolorektum KRAS G12C, 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "Subjekt nesmí podstoupit žádnou systémovou léčbu v kontextu metastatického onemocnění"},
+      {"id": "msi", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "dMMR/MSI-H"}, "quote": "Tumor s prokázanou vysokou mikrosatelitní nestabilitou (MSI-H)."},
+      {"id": "braf", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "BRAF", "variant": "V600E"}, "quote": "Tumor s prokázanou mutací BRAF V600E."},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "Performance Status podle Eastern Cooperative Oncology Group (ECOG) ≤ 1."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Věk ≥ 18 let"}
+    ]}]},
+    "2023/17": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRPC – 2. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C61"], "quote": "prostata, mCRPC 2. linie"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "M", "quote": "prostata, mCRPC 2. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "metastatické onemocnění dle CT/MRI"},
+      {"id": "nha", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["NHA"], "quote": "onemocnění progredovalo během léčby nebo po léčbě 1 NHA"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG 0-1"},
+      {"id": "swallow", "kind": "exclusion", "field": "can_swallow", "op": "eq", "value": false, "quote": "neschopnost polykat léky"}
+    ]}]},
+    "2023/18": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRPC – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C61"], "quote": "prostata, mCRPC, 1. linie"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "M", "quote": "prostata, mCRPC, 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "metastatické onemocnění dokumentované na CT nebo SCINTI"},
+      {"id": "nha", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["NHA"], "quote": "progrese po léčbě jedním NHA pro HSPC"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG 0-1"},
+      {"id": "swallow", "kind": "exclusion", "field": "can_swallow", "op": "eq", "value": false, "quote": "neschopnost polykat tablety"}
+    ]}]},
+    "2023/19A": {"review": "navrh", "cohorts": [{"id": "main", "label": "Glioblastom IDH wt – první recidiva", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C71"], "quote": "glioblastom, IDH wt, WHO G4"},
+      {"id": "idh", "kind": "inclusion", "field": "biomarker_negative", "op": "negative", "value": {"marker": "IDH"}, "quote": "glioblastom, IDH wt, WHO G4"},
+      {"id": "recur", "kind": "inclusion", "field": "manual", "op": "review", "value": "První progrese/recidiva po léčbě 1. linie", "quote": "Pacienti s první progresí nebo recidivou glioblastomu"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 2, "quote": "Výkonnostní stav WHO 0-2"}
+    ]}]},
+    "2023/29": {"review": "navrh", "cohorts": [{"id": "main", "label": "Resekabilní NSCLC II–IIIB – neoadjuvance", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C34"], "quote": "plíce, NSCLC s resekabilním stádiem II až IIIB (N2) k neoadj"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["nemalobunecny_nsclc"], "quote": "plíce, NSCLC s resekabilním stádiem II až IIIB (N2) k neoadj"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalizovane_resekabilni"], "quote": "plíce, NSCLC s resekabilním stádiem II až IIIB (N2) k neoadj"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["neoadjuvance"], "quote": "plíce, NSCLC s resekabilním stádiem II až IIIB (N2) k neoadj"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG výkonnostní stav 0 až 1"}
+    ]}]},
+    "2023/36": {"review": "navrh", "cohorts": [{"id": "main", "label": "HR+/HER2− karcinom prsu s BRCA1/2 nebo PALB2 – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso BRCA nebo PLB mutace, 1. linie"},
+      {"id": "hrd", "kind": "inclusion", "field": "any_of", "op": "any", "quote": "Dokumentovaná ztráta funkce (loss of function) genů BRCA1, BRCA2 nebo PALB2", "value": [
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA1"}},
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA2"}},
+        {"field": "biomarker", "op": "positive", "value": {"marker": "PALB2"}}
+      ]},
+      {"id": "er", "kind": "inclusion", "field": "biomarker_value", "op": ">=", "value": {"marker": "ER", "threshold": 1}, "quote": "Dokumentovaná exprese estrogenových receptorů (ER) e 1 %"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "Dle nejnovější biopsie nádoru (IHC 0, 1+ nebo IHC 2+ s negativním ISH testem)"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "Pokročilý karcinom prsu (buď lokálně pokročilý, který nelze léčit s kurativním záměrem, nebo metastatický)"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "prso BRCA nebo PLB mutace, 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "Předchozí systémová protinádorová léčba metastatického onemocnění není povolena"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "Skóre ECOG 0 nebo 1"}
+    ]}]},
+    "2023/38": {"review": "navrh", "cohorts": [{"id": "main", "label": "R/M HNSCC HPV negativní – 2.–3. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C00", "C01", "C02", "C03", "C04", "C05", "C06", "C09", "C10", "C12", "C13", "C32"], "quote": "hlava krk HPV neg. 2.,3.linie"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["skvamozni"], "quote": "Histologicky a/nebo cytologicky potvrzená primární diagnóza R/M HNSCC"},
+      {"id": "hpv", "kind": "inclusion", "field": "biomarker_negative", "op": "negative", "value": {"marker": "HPV"}, "quote": "musí být p16 negativní a prokázat HPV negativní stav"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [1, 2], "quote": "hlava krk HPV neg. 2.,3.linie"},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "Účastníci museli podstoupit předchozí neúspěšnou terapii anti-PD-1/PD-L1 ICI a chemoterapii založenou na platině"},
+      {"id": "platina", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["platina"], "quote": "Účastníci museli podstoupit předchozí neúspěšnou terapii anti-PD-1/PD-L1 ICI a chemoterapii založenou na platině"},
+      {"id": "egfr", "kind": "exclusion", "field": "prior_therapy", "op": "received", "scope": "paliativni", "value": ["anti-EGFR"], "quote": "předchozí cetuximabem / alternativními inhibitory EGFR"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "Stav výkonnosti 0 nebo 1 podle Východní kooperativní onkologické skupiny"}
+    ]}]},
+    "2023/44": {"review": "navrh", "cohorts": [{"id": "main", "label": "Skvamózní NSCLC st. IV – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C34"], "quote": "plíce NSCLC, skvamózní"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["skvamozni"], "quote": "plíce NSCLC, skvamózní"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "pacienty se squamózním NSCLC st. IV"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "předchozí systémová terapie NSCLC"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "- ECOG 0 až 1"}
+    ]}]},
+    "2024/12A": {"review": "navrh", "cohorts": [{"id": "main", "label": "Deprese u onkologického onemocnění (psilocybin)", "criteria": [
+      {"id": "dep", "kind": "inclusion", "field": "manual", "op": "review", "value": "Depresivní syndrom komorbidní s onkologickým onemocněním", "quote": "depresivní syndrom, onko anamnéza"},
+      {"id": "age_min", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Muži a ženy ve věku 18‒75 let"},
+      {"id": "age_max", "kind": "inclusion", "field": "age", "op": "<=", "value": 75, "quote": "Muži a ženy ve věku 18‒75 let"},
+      {"id": "swallow", "kind": "exclusion", "field": "can_swallow", "op": "eq", "value": false, "quote": "Nemožnost perorálního podání studijní medikace ve formě tobolek"}
+    ]}]},
+    "2024/16": {"review": "navrh", "cohorts": [{"id": "main", "label": "Karcinom biliárního traktu", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C22", "C23", "C24"], "quote": "biliární trakt"}
+    ]}]},
+    "2024/32": {"review": "navrh", "cohorts": [{"id": "main", "label": "ER+/HER2− karcinom prsu s ESR1 mutací po CDK4/6i", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso, ER+,HER2-,  ESR1 mutace"},
+      {"id": "esr1", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "ESR1"}, "quote": "prso, ER+,HER2-,  ESR1 mutace"},
+      {"id": "er", "kind": "inclusion", "field": "biomarker_value", "op": ">=", "value": {"marker": "ER", "threshold": 1}, "quote": "prso, ER+,HER2-,  ESR1 mutace"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "prso, ER+,HER2-,  ESR1 mutace"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "U PACIENTEK S POKROČILÝM MALIGNÍM NÁDOROVÝM ONEMOCNĚNÍM PRSU"},
+      {"id": "cdk", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["CDK4/6 inhibitor"], "quote": "PROGREDOVAL NA ENDOKRINNÍ TERAPII A PŘI PODÁVÁNÍ INHIBITORŮ CDK4/6"}
+    ]}]},
+    "2024/39R": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRC – 1. linie (telisotuzumab adizutekan)", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C18", "C19", "C20"], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "Předchozí systémová léčba mCRC."},
+      {"id": "ras_side", "kind": "inclusion", "field": "manual", "op": "review", "value": "Kombinace strany primárního nádoru a stavu RAS – ověřit kohortu", "quote": "Pokud je primární nádor mutovaný v genech KRAS/NRAS, může být primární nádor levostranný nebo pravostranný."},
+      {"id": "braf", "kind": "inclusion", "field": "biomarker_negative", "op": "negative", "value": {"marker": "BRAF", "variant": "V600E"}, "quote": "Nádor subjektu neobsahuje mutaci BRAF V600E."},
+      {"id": "msi", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "dMMR/MSI-H"}, "quote": "Nádor subjektu není dMMR+/MSI-H."},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG 0 nebo 1."}
+    ]}]},
+    "2024/40": {"review": "navrh", "cohorts": [{"id": "main", "label": "HER2+ karcinom žaludku/GEJ – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C16"], "quote": "žaludek/GEJ, HER2+, 1. linie"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["pozitivni"], "quote": "HER2 pozitivita potvrzená centrálně"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "neléčený, neresekovatelný, lokálně pokročilý nebo metastatický ca žaludku nebo GEJ"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "neléčený, neresekovatelný, lokálně pokročilý nebo metastatický ca žaludku nebo GEJ"}
+    ]}]},
+    "2024/48": {"review": "navrh", "cohorts": [{"id": "main", "label": "TNBC – 1. linie pokročilého onemocnění", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso, TNBC 1. linie"},
+      {"id": "er", "kind": "inclusion", "field": "biomarker_value", "op": "<", "value": {"marker": "ER", "threshold": 1}, "quote": "centrálně potvrzený TNBC z čerstvé biopsie či archivního bločku"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "centrálně potvrzený TNBC z čerstvé biopsie či archivního bločku"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "lokálně pokorčily neresekovatelný nebo metastatický TNBC"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "prso, TNBC 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "bez předchozí systémové terapie"},
+      {"id": "cps", "kind": "exclusion", "field": "biomarker_value", "op": ">", "value": {"marker": "PD-L1 CPS", "threshold": 10}, "quote": "- PD-L1 exprese CPS >10"},
+      {"id": "brca", "kind": "exclusion", "field": "any_of", "op": "any", "quote": "- BRCA mutace", "value": [
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA1"}},
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA2"}}
+      ]}
+    ]}]},
+    "2024/5": {"review": "navrh", "cohorts": [{"id": "main", "label": "TNBC – adjuvance po neoadjuvanci bez pCR", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso TNBC adjuvance"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["adjuvance"], "quote": "prso TNBC adjuvance"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalizovane_resekabilni"], "quote": "bez vzdálených metastáz"},
+      {"id": "neoadj", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "alespoň 5 dávek neoadjuvantní léčby pembrolizumabem a chemoterapie"},
+      {"id": "pcr", "kind": "inclusion", "field": "manual", "op": "review", "value": "Bez patologické kompletní odpovědi při operaci", "quote": "nedosažení patologické kompletní odpovědi při operaci"},
+      {"id": "brca", "kind": "exclusion", "field": "any_of", "op": "any", "quote": "- BRCA mutace", "value": [
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA1"}},
+        {"field": "biomarker", "op": "positive", "value": {"marker": "BRCA2"}}
+      ]}
+    ]}]},
+    "2024/50R": {"review": "navrh", "cohorts": [
+      {"id": "breast", "label": "HR+/HER2− metastatický karcinom prsu po CDK4/6i", "criteria": [
+        {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"},
+        {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"},
+        {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"},
+        {"id": "cdk", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["CDK4/6 inhibitor"], "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"}
+      ]},
+      {"id": "ccne1", "label": "Pokročilé solidní nádory s amplifikací CCNE1", "criteria": [
+        {"id": "ccne1", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "CCNE1"}, "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"},
+        {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "prso mts po CDK4/6 + pokročilé solidní nádory CCNE1 ampl"}
+      ]}
+    ]},
+    "2024/53": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRPC (I-DXd vs docetaxel)", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C61"], "quote": "prostata, mCRPC"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "M", "quote": "prostata, mCRPC"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "prostata, mCRPC"}
+    ]}]},
+    "2024/59": {"review": "navrh", "cohorts": [{"id": "main", "label": "TNBC nebo HR-low/HER2− – neoadjuvance", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "TNBC, neoadjuvance"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["neoadjuvance"], "quote": "TNBC, neoadjuvance"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalizovane_resekabilni"], "quote": "Má dosud neléčený vysoce rizikový, časný, nemetastatický (M0) karcinom prsu"},
+      {"id": "er", "kind": "inclusion", "field": "any_of", "op": "any", "quote": "trojnásobně negativní nebo HRnízký+/ HER2-", "value": [
+        {"field": "biomarker_value", "op": "<", "value": {"marker": "ER", "threshold": 1}},
+        {"field": "biomarker_value", "op": "between", "value": {"marker": "ER", "min": 1, "max": 10}}
+      ]},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "HER2- [IHC 0 nebo 1+, nebo 2+ s negativním ISH testem]"},
+      {"id": "naive", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["platina", "taxan", "antracyklin", "anti-PD-1/PD-L1", "ADC", "endokrinni terapie", "anti-HER2", "fluoropyrimidin"], "quote": "Má dosud neléčený vysoce rizikový"},
+      {"id": "biopsy", "kind": "inclusion", "field": "manual", "op": "review", "value": "Biopsie méně než 29 dní před podpisem informovaného souhlasu; centrální potvrzení ER/PgR/HER2/TROP2/PD-L1", "quote": "Datum biopsie pro tkáňovou diagnostiku aktuálního BC je méně než 29 dní před datem podpisu informovaného souhlasu."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "ve věku od 18 let včetně"}
+    ]}]},
+    "2024/9A": {"review": "navrh", "cohorts": [{"id": "main", "label": "mRCC – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C64"], "quote": "mRCC - 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "mRCC - 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "mRCC - 1. linie"}
+    ]}]},
+    "2024/R41": {"review": "navrh", "cohorts": [{"id": "main", "label": "Skvamózní karcinom jícnu – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C15"], "quote": "jícen, skvamózní lokálně pokročilý/MTS - 1.linie"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["skvamozni"], "quote": "jícen, skvamózní lokálně pokročilý/MTS - 1.linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "jícen, skvamózní lokálně pokročilý/MTS - 1.linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "jícen, skvamózní lokálně pokročilý/MTS - 1.linie"}
+    ]}]},
+    "2024/R43": {"review": "navrh", "cohorts": [{"id": "main", "label": "Melanom st. III neresekabilní / IV – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C43"], "quote": "melanom 1. linie III. st. neresek., IV. st. metastatický"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "melanom 1. linie III. st. neresek., IV. st. metastatický"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "melanom 1. linie III. st. neresek., IV. st. metastatický"}
+    ]}]},
+    "2025/07": {"review": "navrh", "cohorts": [{"id": "main", "label": "Adenokarcinom žaludku/GEJ HER2− – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C152", "C155", "C158", "C159", "C16"], "quote": "žaludek/GEJ, 1. linie adenoca, HER2-"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["adenokarcinom"], "quote": "žaludek/GEJ, 1. linie adenoca, HER2-"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "žaludek/GEJ, 1. linie adenoca, HER2-"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "žaludek/GEJ, 1. linie adenoca, HER2-"}
+    ]}]},
+    "2025/12R": {"review": "navrh", "cohorts": [{"id": "main", "label": "mHSPC", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C61"], "quote": "mHSPC"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "M", "quote": "mHSPC"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "mHSPC"}
+    ]}]},
+    "2025/16": {"review": "navrh", "cohorts": [{"id": "main", "label": "HR+/HER2− karcinom prsu s PIK3CA mutací po CDK4/6i", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso HR+ HER2- s PIK3CA mutací"},
+      {"id": "pik3ca", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "PIK3CA"}, "quote": "prso HR+ HER2- s PIK3CA mutací"},
+      {"id": "er", "kind": "inclusion", "field": "biomarker_value", "op": ">=", "value": {"marker": "ER", "threshold": 1}, "quote": "prso HR+ HER2- s PIK3CA mutací"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["0", "low", "ultralow"], "quote": "prso HR+ HER2- s PIK3CA mutací"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "lokálně pokročilým nebo metastatickým karcinomem prsu s mutací v genu PIK3CA"},
+      {"id": "cdk", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["CDK4/6 inhibitor"], "quote": "po progresi během nebo na léčbě inhibitorem CDK4/6"}
+    ]}]},
+    "2025/20F": {"review": "navrh", "cohorts": [{"id": "main", "label": "Solidní nádory s delecí MTAP (fáze I)", "criteria": [
+      {"id": "mtap", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "MTAP"}, "quote": "solidní nádory MTAP deleted, NSCLC 1L, PDAC"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "in participants with MTAP-deleted solid tumors"}
+    ]}]},
+    "2025/21A": {"review": "navrh", "cohorts": [{"id": "main", "label": "Astrocytom IDH mutovaný WHO G2–3", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C71"], "quote": "astrocytom, IDHmut, WHO G2-3"},
+      {"id": "idh", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "IDH"}, "quote": "astrocytom, IDHmut, WHO G2-3"}
+    ]}]},
+    "2025/22": {"review": "navrh", "cohorts": [{"id": "main", "label": "Karcinom endometria po platině a imunoterapii", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C54"], "quote": "endometrium po progresi na platině a imunoterapii"},
+      {"id": "platina", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["platina"], "quote": "endometrium po progresi na platině a imunoterapii"},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "endometrium po progresi na platině a imunoterapii"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "F", "quote": "endometrium po progresi na platině a imunoterapii"}
+    ]}]},
+    "2025/29": {"review": "navrh", "cohorts": [{"id": "main", "label": "RCC – 1. linie po adjuvanci anti-PD-1/L1", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C64"], "quote": "RCC 1. linie PD po/při adjuvanci anti-PD-1/L1"},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "RCC 1. linie PD po/při adjuvanci anti-PD-1/L1"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "RCC 1. linie PD po/při adjuvanci anti-PD-1/L1"}
+    ]}]},
+    "2025/31": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRC – 1. linie (ivonescimab + mFOLFOX6)", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C18", "C19", "C20"], "quote": "kolorektum 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["metastaticke"], "quote": "potvrzený metastazující kolorektální karcinom (mCRC), který není vhodný pro kurativní resekci"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "kolorektum 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "Pacienti v první linii léčby, kteří dosud nedostali žádnou systémovou terapii pro metastatické onemocnění."},
+      {"id": "msi", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "dMMR/MSI-H"}, "quote": "Pacienti s vysokou mikrosatelitní nestabilitou (MSI-H) nebo deficitem opravy chybného párování bazí (dMMR)."},
+      {"id": "braf", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "BRAF", "variant": "V600E"}, "quote": "Známá mutace BRAF V600E"},
+      {"id": "io_vegf", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["anti-PD-1/PD-L1", "anti-VEGF"], "quote": "Vyloučena je rovněž předchozí imunoterapie"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG PS 0 nebo 1."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Osoby starší 18 let v době zařazení."}
+    ]}]},
+    "2025/35": {"review": "navrh", "cohorts": [{"id": "main", "label": "mRCC – 2.–4. linie po anti-PD-1/L1 a VEGF-TKI", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C64"], "quote": "mRCC - 2. až 4. linie po anti-PD1/L1 a VEGF-TKI"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [1, 3], "quote": "mRCC - 2. až 4. linie po anti-PD1/L1 a VEGF-TKI"},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "mRCC - 2. až 4. linie po anti-PD1/L1 a VEGF-TKI"},
+      {"id": "tki", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["VEGF-TKI"], "quote": "mRCC - 2. až 4. linie po anti-PD1/L1 a VEGF-TKI"}
+    ]}]},
+    "2025/3F": {"review": "navrh", "cohorts": [{"id": "main", "label": "Fáze I – pokročilé solidní nádory (perorální EP102)", "criteria": [
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "in Participants with Advanced Solid Tumors"},
+      {"id": "oral", "kind": "inclusion", "field": "manual", "op": "review", "value": "Perorální podání – ověřit podle protokolu", "quote": "Orally Administered EP102 monotherapy"}
+    ]}]},
+    "2025/4": {"review": "navrh", "cohorts": [{"id": "main", "label": "mRCC po anti-PD-1/PD-L1", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C64"], "quote": "2. linie pro mts po anti PD-1/PD-L1 nebo 1. linie po anti PD"},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "2. linie pro mts po anti PD-1/PD-L1 nebo 1. linie po anti PD"}
+    ]}]},
+    "2025/45": {"review": "navrh", "cohorts": [{"id": "main", "label": "mCRC – 1. linie (pumitamig)", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C18", "C19", "C20"], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "Osoby s kolorektálním karcinomem, který se opět projevil nebo rozšířil a nelze jej operativně vyléčit."},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "kolorektum, mts, 1. linie"},
+      {"id": "prior", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["anti-PD-1/PD-L1", "platina", "fluoropyrimidin", "irinotekan", "taxan", "antracyklin"], "quote": "Osoby, které již byly léčeny inhibitory kontrolních bodů, agonisty CD137 nebo chemoterapií."},
+      {"id": "msi", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "dMMR/MSI-H"}, "quote": "Osoby bez typu kolorektálního karcinomu označovaného jako dMMR/MSI-H."},
+      {"id": "braf", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "BRAF", "variant": "V600E"}, "quote": "Osoby bez mutace genu BRAF V600E."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Účastníci musí být starší 18 let."}
+    ]}]},
+    "2025/50": {"review": "navrh", "cohorts": [{"id": "main", "label": "Neskvamózní NSCLC s KRAS G12C a PD-L1 < 1 % – 1. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C34"], "quote": "plíce, NSCLC KRAS G12C 1. linie"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["adenokarcinom", "velkobunecny"], "quote": "potvrzený neskvamózní nemalobuněčný karcinom plic (NSCLC)"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "onemocnění ve stadiu IV (metastatické) nebo pokročilé stadium IIIB/C"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 0], "quote": "pacient nesmí mít žádnou předchozí systémovou protinádorovou léčbu pro metastatické nebo nevyléčitelné onemocnění."},
+      {"id": "kras", "kind": "inclusion", "field": "biomarker", "op": "positive", "value": {"marker": "KRAS", "variant": "G12C"}, "quote": "pozitivita na mutaci KRAS p.G12C potvrzená centrální laboratoří"},
+      {"id": "pdl1", "kind": "inclusion", "field": "biomarker_value", "op": "<", "value": {"marker": "PD-L1 TPS", "threshold": 1}, "quote": "negativní exprese PD-L1 (TPS < 1 %) potvrzená centrální laboratoří"},
+      {"id": "egfr", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "EGFR"}, "quote": "nádory, u nichž jsou známy jiné genetické změny (např. EGFR nebo ALK)"},
+      {"id": "alk", "kind": "exclusion", "field": "biomarker", "op": "positive", "value": {"marker": "ALK"}, "quote": "nádory, u nichž jsou známy jiné genetické změny (např. EGFR nebo ALK)"},
+      {"id": "g12ci", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["KRAS G12C inhibitor"], "quote": "předchozí léčba sotorasibem nebo jiným inhibitorem KRAS p.G12C"},
+      {"id": "swallow", "kind": "exclusion", "field": "can_swallow", "op": "eq", "value": false, "quote": "poruchy gastrointestinálního traktu znemožňující užívání perorálních léků"},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "ECOG 0 nebo 1."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "minimálně 18 let"}
+    ]}]},
+    "2025_55": {"review": "navrh", "cohorts": [{"id": "main", "label": "HER2+ metastatický karcinom prsu – 2. a další linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C50"], "quote": "prso, 2. linie a vyšší HER-2 + MTS"},
+      {"id": "her2", "kind": "inclusion", "field": "her2_status", "op": "in", "value": ["pozitivni"], "quote": "HER2 status: Potvrzená HER2 pozitivita"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "Patologicky doložený karcinom prsu, který je neoperovatelný, lokálně pokročilý nebo metastatický."},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "prso, 2. linie a vyšší HER-2 + MTS"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [1, 99], "quote": "prso, 2. linie a vyšší HER-2 + MTS"},
+      {"id": "antiher2", "kind": "inclusion", "field": "prior_therapy", "op": "required", "scope": "paliativni", "value": ["anti-HER2"], "quote": "Alespoň jedna předchozí linie anti-HER2 terapie pro pokročilé onemocnění."},
+      {"id": "adc", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-HER2 ADC"], "quote": "Předchozí léčba konjugátem protilátky a léčiva (ADC), jako je T-DXd (Enhertu) nebo T-DM1 (Kadcyla)"},
+      {"id": "tki", "kind": "exclusion", "field": "prior_therapy", "op": "received", "scope": "paliativni", "value": ["anti-HER2 TKI"], "quote": "Předchozí TKI pro metastatické onemocnění není povolena."},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 2, "quote": "Výkonnostní status v rozmezí 0 až 2."},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Věk: Minimálně 18 let v době podpisu souhlasu."}
+    ]}]},
+    "2025/R17": {"review": "navrh", "cohorts": [{"id": "main", "label": "Karcinom ovaria/tuby/peritonea – 1.–2. linie", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C56", "C57", "C48"], "quote": "ca ovárií, tuby, primárně peritoneální nádory - I/II.linie"},
+      {"id": "sex", "kind": "inclusion", "field": "sex", "op": "eq", "value": "F", "quote": "ca ovárií, tuby, primárně peritoneální nádory - I/II.linie"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [0, 1], "quote": "ca ovárií, tuby, primárně peritoneální nádory - I/II.linie"}
+    ]}]},
+    "2025/R46": {"review": "navrh", "cohorts": [{"id": "main", "label": "Skvamózní karcinom jícnu – 2.–3. linie (I-DXd)", "criteria": [
+      {"id": "dg", "kind": "inclusion", "field": "diagnosis", "op": "prefix_in", "value": ["C15"], "quote": "skvamozní karcinom jícnu -2l/3l"},
+      {"id": "hist", "kind": "inclusion", "field": "histology", "op": "in", "value": ["skvamozni"], "quote": "dlaždicobuněčný karcinom jícnu (ESCC)"},
+      {"id": "extent", "kind": "inclusion", "field": "disease_extent", "op": "in", "value": ["lokalne_pokrocile_neresekabilni", "metastaticke"], "quote": "neresekovatelný lokálně pokročilý nebo metastatický dlaždicobuněčný karcinom jícnu"},
+      {"id": "setting", "kind": "inclusion", "field": "setting", "op": "in", "value": ["paliativni"], "quote": "skvamozní karcinom jícnu -2l/3l"},
+      {"id": "lines", "kind": "inclusion", "field": "prior_palliative_lines", "op": "between", "value": [1, 2], "quote": "Progrese onemocnění po 1 nebo 2 předchozích liniích systémové léčby."},
+      {"id": "platina", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["platina"], "quote": "Předchozí léčba musela zahrnovat platinový derivát a inhibitor PD-1/PD-L1."},
+      {"id": "io", "kind": "inclusion", "field": "prior_therapy", "op": "required", "value": ["anti-PD-1/PD-L1"], "quote": "Předchozí léčba musela zahrnovat platinový derivát a inhibitor PD-1/PD-L1."},
+      {"id": "topo", "kind": "exclusion", "field": "prior_therapy", "op": "received", "value": ["irinotekan", "topoizomeraza ADC"], "quote": "Předchozí léčba irinotekanem nebo jiným inhibitorem topoizomerázy I, včetně konjugátů protilátka-léčivo (ADC)."},
+      {"id": "ecog", "kind": "inclusion", "field": "ecog", "op": "<=", "value": 1, "quote": "Hodnota ECOG 0 nebo 1"},
+      {"id": "age", "kind": "inclusion", "field": "age", "op": ">=", "value": 18, "quote": "Věk: Minimálně 18 let v době podpisu informovaného souhlasu."}
+    ]}]}
+  }
+}
