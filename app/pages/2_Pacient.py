@@ -1,6 +1,7 @@
 import streamlit as st
 
 from common import apply_profile, disclaimer, get_catalog, page_setup, profile_form, render_result, reset
+from app.report_input import report_input
 from trialink.extraction import ExtractionError, extract_profile
 from trialink.lay_terms import TOOLTIPS
 from trialink.matching import STATUS_CANDIDATE, STATUS_VERIFY, match
@@ -22,14 +23,10 @@ with st.sidebar:
     st.caption("Nic neukládáme. Údaje se smažou tlačítkem výše nebo po 15 minutách nečinnosti.")
 
 with st.expander("📄 Mám lékařskou zprávu – vyplnit automaticky"):
-    st.warning("Zpráva bude zpracována cloudovou službou umělé inteligence (OpenAI). Před vložením z ní odstraňte jméno, "
-               "rodné číslo, adresu a další osobní údaje. Text si neukládáme.")
-    with st.form(f"{P}_extract", clear_on_submit=True):
-        text = st.text_area("Vložte text zprávy", height=160, max_chars=40_000)
-        upload = st.file_uploader("…nebo nahrajte textový soubor (.txt)", type=["txt"])
-        go = st.form_submit_button("Vyplnit formulář ze zprávy")
-    if go:
-        report = upload.getvalue().decode("utf-8", errors="replace") if upload else text
+    st.warning("Pouze po kliknutí na „Vyplnit formulář ze zprávy“ bude text z kolonky Anonymizovaná zpráva "
+               "odeslán do cloudové služby OpenAI. Před odesláním odstraňte osobní údaje.")
+    report = report_input(P, lay=True)
+    if report is not None:
         try:
             with st.spinner("Čtu zprávu…"):
                 result = extract_profile(report)
@@ -39,7 +36,7 @@ with st.expander("📄 Mám lékařskou zprávu – vyplnit automaticky"):
         except ExtractionError as exc:
             st.error(str(exc))
         finally:
-            report = text = upload = None
+            report = None
 
 st.caption("Formulář si prosím zkontrolujte – automatické vyplnění může obsahovat chyby.")
 profile = profile_form(P, lay=True)

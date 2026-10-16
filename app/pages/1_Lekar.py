@@ -4,6 +4,7 @@ from datetime import date
 import streamlit as st
 
 from common import apply_profile, disclaimer, get_catalog, page_setup, profile_form, render_result, reset
+from app.report_input import report_input
 from trialink.demo_cases import CASES
 from trialink.extraction import ExtractionError, extract_profile
 from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_VERIFY, match
@@ -32,13 +33,10 @@ with st.sidebar:
     st.caption("Údaje existují jen v paměti této relace.")
 
 with st.expander("📄 Vyplnit ze zprávy (AI extrakce – OpenAI, cloud)"):
-    st.warning("Text bude odeslán do cloudové služby OpenAI. Vkládejte pouze anonymizovanou zprávu. Text se neukládá.")
-    with st.form(f"{P}_extract", clear_on_submit=True):
-        text = st.text_area("Anonymizovaná zpráva", height=180, max_chars=40_000)
-        upload = st.file_uploader("…nebo nahrajte .txt", type=["txt"])
-        go = st.form_submit_button("Extrahovat parametry")
-    if go:
-        report = upload.getvalue().decode("utf-8", errors="replace") if upload else text
+    st.warning("Pouze po kliknutí na „Extrahovat parametry“ bude text z kolonky Anonymizovaná zpráva "
+               "odeslán do cloudové služby OpenAI. Vkládejte pouze anonymizovanou zprávu.")
+    report = report_input(P)
+    if report is not None:
         try:
             with st.spinner("Extrahuji…"):
                 result = extract_profile(report)
@@ -50,7 +48,7 @@ with st.expander("📄 Vyplnit ze zprávy (AI extrakce – OpenAI, cloud)"):
         except ExtractionError as exc:
             st.error(str(exc))
         finally:
-            report = text = upload = None
+            report = None
     if ss.get(f"{P}_dropped"):
         st.info("Vynecháno (údaj nebyl doložen citací ze zprávy): " + ", ".join(ss[f"{P}_dropped"]))
 
