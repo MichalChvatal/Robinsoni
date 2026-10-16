@@ -58,12 +58,14 @@ class Study:
 
 
 def default_export_path() -> Path:
-    """TRIALINK_EXPORT env var, else the local (git-ignored) hackathon data folder."""
+    """Explicit export, local data directory, then the original hackathon layout."""
     if os.getenv("TRIALINK_EXPORT"):
         return Path(os.environ["TRIALINK_EXPORT"])
-    for data_root in (d for d in REPO_ROOT.glob("RAKATHON*/RAKATHON*") if d.is_dir()):
-        for path in data_root.glob("*NIS*/*.csv"):
-            return path
+    data_roots = [REPO_ROOT / "data", *sorted(REPO_ROOT.glob("RAKATHON*/RAKATHON*"))]
+    for data_root in data_roots:
+        for path in sorted(data_root.glob("*NIS*/KH_otevreny_nabor*.csv")):
+            if path.is_file():
+                return path
     raise FileNotFoundError("Export studií SONIS nebyl nalezen (nastavte TRIALINK_EXPORT nebo připojení k IRIS).")
 
 

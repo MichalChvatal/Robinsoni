@@ -9,6 +9,7 @@ dependencies = [
     "intersystems-irispython>=5.0",
     "openpyxl>=3.1",
     "python-dotenv>=1.0",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
@@ -17,3 +18,13 @@ dev = ["pytest>=8"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["trialink*", "app*"]
+exclude = ["trialink.data*"]
+
+[tool.setuptools.package-data]
+trialink = ["data/*.json", "data/*.csv", "data/ocr/*"]
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

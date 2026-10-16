@@ -1,0 +1,7 @@
+Czech OCR model: ces.traineddata from tesseract-ocr/tessdata_best.
+Source: https://github.com/tesseract-ocr/tessdata_best
+Revision: e12c65a915945e4c28e237a9b52bc4a8f39a0cec
+Original file (unmodified): ces.traineddata
+SHA256: d821773116d3c4e0360ea750066436c60ae45af02c39da3a840a543d761b3f41
+License: Apache License 2.0; see accompanying LICENSE.
+The model is reference data, not patient data.
