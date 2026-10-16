@@ -7,3 +7,4 @@ runOnSave = false
 
 [client]
 toolbarMode = "viewer"
+showSidebarNavigation = false

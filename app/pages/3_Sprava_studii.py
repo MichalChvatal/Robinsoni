@@ -16,6 +16,7 @@ AUTH = "admauth_ok"
 page_setup("Správa studií", P)
 ss = st.session_state
 
+st.markdown("[← Zpět na průvodce](/)")
 st.title("🗂️ Správa studií")
 
 
@@ -45,7 +46,7 @@ if not ss.get(AUTH):
         time.sleep(1)
         st.error("Nesprávné heslo.")
     st.stop()
-if st.sidebar.button("🔒 Odhlásit správce"):
+if st.button("🔒 Odhlásit správce"):
     ss.pop(AUTH, None)
     st.rerun()
 
