@@ -45,6 +45,60 @@ HISTOLOGY_BY_MORPHO = {
 }
 
 
+ICD_NAMES = {
+    "C00": "Ret", "C01": "Kořen jazyka", "C02": "Jiné části jazyka", "C03": "Dáseň", "C04": "Spodina ústní",
+    "C05": "Patro", "C06": "Jiné části úst", "C07": "Příušní žláza", "C08": "Jiné velké slinné žlázy", "C09": "Mandle",
+    "C10": "Ústní část hltanu (orofarynx)", "C11": "Nosohltan", "C12": "Sinus piriformis", "C13": "Dolní část hltanu (hypofarynx)",
+    "C14": "Jiné části rtu, úst a hltanu", "C15": "Jícen", "C16": "Žaludek", "C17": "Tenké střevo", "C18": "Tlusté střevo",
+    "C19": "Rektosigmoideální spojení", "C20": "Konečník (rektum)", "C21": "Řiť a řitní kanál",
+    "C22": "Játra a intrahepatální žlučovody", "C23": "Žlučník", "C24": "Jiné části žlučových cest", "C25": "Slinivka břišní",
+    "C26": "Jiné trávicí orgány", "C30": "Nosní dutina a střední ucho", "C31": "Vedlejší dutiny nosní", "C32": "Hrtan",
+    "C33": "Průdušnice", "C34": "Průdušky a plíce", "C37": "Brzlík", "C38": "Srdce, mezihrudí a pohrudnice",
+    "C39": "Jiné dýchací a nitrohrudní orgány", "C40": "Kosti a chrupavky končetin", "C41": "Kosti a chrupavky jiných lokalizací",
+    "C42": "Krvetvorný a retikuloendotelový systém", "C43": "Melanom kůže", "C44": "Jiné nádory kůže", "C45": "Mezoteliom",
+    "C46": "Kaposiho sarkom", "C47": "Periferní nervy a autonomní nervový systém", "C48": "Retroperitoneum a peritoneum",
+    "C49": "Jiné pojivové a měkké tkáně", "C50": "Prs", "C51": "Vulva", "C52": "Pochva", "C53": "Děložní hrdlo",
+    "C54": "Tělo děložní", "C55": "Děloha, část neurčena", "C56": "Vaječník", "C57": "Jiné ženské pohlavní orgány",
+    "C58": "Placenta", "C60": "Penis", "C61": "Prostata", "C62": "Varle", "C63": "Jiné mužské pohlavní orgány",
+    "C64": "Ledvina", "C65": "Ledvinná pánvička", "C66": "Močovod", "C67": "Močový měchýř", "C68": "Jiné močové orgány",
+    "C69": "Oko a očnice", "C70": "Mozkové pleny", "C71": "Mozek", "C72": "Mícha, hlavové nervy a jiné části CNS",
+    "C73": "Štítná žláza", "C74": "Nadledvina", "C75": "Jiné endokrinní žlázy", "C76": "Jiné a nepřesně určené lokalizace",
+    "C77": "Mízní uzliny", "C80": "Neznámá primární lokalizace", "C81": "Hodgkinův lymfom", "C82": "Folikulární lymfom",
+    "C83": "Nefolikulární lymfom", "C84": "Zralé T/NK-buněčné lymfomy", "C85": "Jiné a neurčené non-Hodgkinovy lymfomy",
+    "C86": "Jiné T/NK-buněčné lymfomy", "C88": "Maligní imunoproliferativní nemoci", "C90": "Mnohočetný myelom a plazmocytom",
+    "C91": "Lymfoidní leukemie", "C92": "Myeloidní leukemie", "C93": "Monocytová leukemie", "C94": "Jiné leukemie",
+    "C95": "Leukemie neurčeného typu", "C96": "Jiné nádory lymfatické a krvetvorné tkáně",
+}
+# ICD-O-3 topography subsites for the most common sites; others fall back to the 3-character name.
+SUBSITE_NAMES = {
+    "C15": {"0": "krční část", "1": "hrudní část", "2": "břišní část", "3": "horní třetina", "4": "střední třetina", "5": "dolní třetina"},
+    "C16": {"0": "kardie", "1": "fundus", "2": "tělo", "3": "antrum", "4": "pylorus", "5": "malé zakřivení", "6": "velké zakřivení"},
+    "C18": {"0": "slepé střevo (cékum)", "1": "červovitý přívěsek", "2": "vzestupný tračník", "3": "jaterní ohbí",
+            "4": "příčný tračník", "5": "slezinné ohbí", "6": "sestupný tračník", "7": "esovitá klička (sigma)"},
+    "C22": {"0": "játra", "1": "intrahepatální žlučovody"},
+    "C25": {"0": "hlava", "1": "tělo", "2": "ocas", "3": "vývod", "4": "Langerhansovy ostrůvky", "7": "jiné části"},
+    "C34": {"0": "hlavní bronchus", "1": "horní lalok", "2": "střední lalok", "3": "dolní lalok"},
+    "C50": {"0": "bradavka a dvorec", "1": "centrální část", "2": "horní vnitřní kvadrant", "3": "dolní vnitřní kvadrant",
+            "4": "horní zevní kvadrant", "5": "dolní zevní kvadrant", "6": "axilární výběžek"},
+    "C53": {"0": "endocervix", "1": "exocervix"},
+    "C54": {"0": "isthmus", "1": "endometrium", "2": "myometrium", "3": "fundus"},
+    "C67": {"0": "trigonum", "1": "strop", "2": "boční stěna", "3": "přední stěna", "4": "zadní stěna", "5": "hrdlo",
+            "6": "ústí močovodu", "7": "urachus"},
+    "C71": {"0": "velký mozek", "1": "čelní lalok", "2": "spánkový lalok", "3": "temenní lalok", "4": "týlní lalok",
+            "5": "mozková komora", "6": "mozeček", "7": "mozkový kmen"},
+}
+
+
+def diagnosis_label(code: str) -> str:
+    """'C186' -> 'C18.6 – Tlusté střevo · sestupný tračník'."""
+    head, sub = code[:3], code[3:4]
+    name = ICD_NAMES.get(head, "")
+    if not sub:
+        return f"{head} – {name}" if name else head
+    part = SUBSITE_NAMES.get(head, {}).get(sub) or {"8": "přesahující léze", "9": "neurčená část"}.get(sub)
+    return f"{head}.{sub}" + (f" – {name}" if name else "") + (f" · {part}" if part else "")
+
+
 def normalize_morpho(code: str | None) -> str | None:
     """'8140/33', '8140/3', '81403' -> '81403' (grade digit is dropped)."""
     if not code:
@@ -161,6 +215,17 @@ class TopoMorphoIndex:
         if not icd:
             return []
         return sorted(t for t in self.by_topo if t.startswith(icd)) if len(icd) < 4 else ([icd] if icd in self.by_topo else [])
+
+    def diagnosis_codes(self) -> list[str]:
+        """Selectable diagnoses: each 3-char site, its subsites (only if more than one) and lymphoma codes."""
+        by_head: dict[str, list[str]] = defaultdict(list)
+        for t in self.by_topo:
+            by_head[t[:3]].append(t)
+        codes = set(by_head)
+        codes.update(t for subs in by_head.values() if len(subs) > 1 for t in subs)
+        if self.any_site:
+            codes.update(c for c in ICD_NAMES if ANY_SITE_DIAGNOSIS.match(c))
+        return sorted(codes)
 
     def morphologies(self, icd: str | None) -> list[str]:
         if self.is_any_site(icd):

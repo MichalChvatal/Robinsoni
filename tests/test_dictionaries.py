@@ -55,6 +55,15 @@ def test_group_depends_on_pair(index):
     assert index.group_names("C341") == ["Plíce", "Plíce NET"]
 
 
+def test_diagnosis_options_and_labels(index):
+    assert index.diagnosis_codes()[:4] == ["C18", "C186", "C187", "C34"]
+    assert "C341" not in index.diagnosis_codes()  # single subsite -> only the 3-char site
+    assert "C81" in index.diagnosis_codes()
+    assert d.diagnosis_label("C186") == "C18.6 – Tlusté střevo · sestupný tračník"
+    assert d.diagnosis_label("C34") == "C34 – Průdušky a plíce"
+    assert d.diagnosis_label("C619") == "C61.9 – Prostata · neurčená část"
+
+
 def test_lymphoma_rows_without_topography(index):
     assert index.morphologies("C81.1") == ["96503"]
     assert "96503" not in index.morphologies("C18")
