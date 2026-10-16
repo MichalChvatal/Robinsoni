@@ -96,7 +96,7 @@ def get_topo_morpho() -> tuple[TopoMorphoIndex | None, str]:
 
 def page_setup(title: str, prefix: str, *also_reset: str) -> None:
     st.set_page_config(page_title=f"TriaLink – {title}", page_icon="🔗", layout="wide")
-    st.markdown("<style>.block-container{padding-top:1.2rem;max-width:1100px}</style>", unsafe_allow_html=True)
+    st.markdown("<style>.block-container{padding-top:3.5rem;max-width:1100px}</style>", unsafe_allow_html=True)
     last = st.session_state.get(f"{prefix}_last_seen")
     if last and time.time() - last > SESSION_TIMEOUT_S:
         for p in (prefix, *also_reset):

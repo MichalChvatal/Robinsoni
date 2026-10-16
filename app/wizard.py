@@ -4,6 +4,7 @@ All state lives in st.session_state only: wiz_* = navigation, doc_* / pat_* = pa
 """
 from __future__ import annotations
 
+import os
 import time
 from datetime import date
 
@@ -199,6 +200,8 @@ def step_report() -> None:
         c1.button("Nemám zprávu – vyplním údaje ručně", on_click=_go, args=("detail",), key="wiz_no_report", width="stretch")
     c2.button("Pokračovat ke kontrole textu →", on_click=_load_report, args=(p,), type="primary", key="wiz_load",
               width="stretch")
+    if os.getenv("TRIALINK_DEMO") != "1":
+        return
     with st.expander("🧪 Ukázkové případy (demo bez AI)"):
         st.selectbox("Testovací kazuistika", [None, *CASES], key=f"{p}_demo",
                      format_func=lambda v: "— vybrat —" if v is None else v)

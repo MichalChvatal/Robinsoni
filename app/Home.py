@@ -17,7 +17,7 @@ c_logo, c_title = st.columns([1, 5], vertical_alignment="center")
 if LOGO.is_file():
     logo = base64.b64encode(LOGO.read_bytes()).decode()
     c_logo.html(f'<a href="https://www.mou.cz" target="_blank" rel="noopener"><img src="data:image/svg+xml;base64,{logo}" '
-                'alt="Masarykův onkologický ústav" style="height:64px;width:auto;margin-top:1.2rem;background:#fff;'
+                'alt="Masarykův onkologický ústav" style="height:64px;width:auto;background:#fff;'
                 'padding:6px 10px;border-radius:8px"></a>')
 c_title.button("TriaLink", key="wiz_home", type="tertiary", on_click=wizard.go_home, help="Zpět na úvod")
 studies, source, issues = get_catalog()
