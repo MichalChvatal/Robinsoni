@@ -41,6 +41,19 @@ def clean(text: str) -> str:
     return text.replace("_x000D_", "").replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
+def record_from_fields(values: dict[str, str]) -> StudyRecord:
+    """Build a record from manually entered fields (same shape as an export row)."""
+    fields = {col: clean(values.get(col, "") or "") for col in COLUMNS}
+    fields["typ_projektu"] = fields["typ_projektu"] or "KH"
+    fields["kontaktni_osoba_klapka"] = fields["kontaktni_osoba_klapka"] or "NA"
+    if not re.fullmatch(r"\d{4}[/_]\w+", fields["id_projektu"]):
+        raise ValueError("ID projektu musí mít tvar RRRR/číslo, např. 2026/12")
+    if not fields["zkratka"] or not fields["kriteria_vstupni_text"]:
+        raise ValueError("Zkratka a vstupní kritéria jsou povinné")
+    raw = "\t".join(fields[c] for c in COLUMNS)
+    return StudyRecord(fields, hashlib.sha256(raw.encode("utf-8")).hexdigest())
+
+
 def _split_fields(raw: str) -> tuple[list[str] | None, bool]:
     parts = raw.split("\t")
     if len(parts) == len(COLUMNS):

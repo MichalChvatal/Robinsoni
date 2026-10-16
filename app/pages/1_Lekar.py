@@ -97,13 +97,22 @@ if selected:
         st.markdown(f"- **{c.role}** {c.name or '❓ jméno chybí'} <{c.email or '❓ e-mail chybí'}>{ext}")
     if ref.blockers:
         st.error("Odeslání blokováno: " + "; ".join(ref.blockers))
-    st.text_input("Předmět", ref.subject, disabled=True)
-    st.text_area("Text zprávy", ref.body, height=360, disabled=True)
-    st.caption("Zpráva neobsahuje identifikační údaje pacienta. Odeslání je v prototypu pouze simulované.")
-    if st.button("Odeslat (simulace)", type="primary", disabled=bool(ref.blockers)):
+    sid = selected.study.study_id
+    subj_key, body_key = f"{P}_ref_subject_{sid}", f"{P}_ref_body_{sid}"
+    if st.button("↺ Obnovit text ze šablony", key=f"{P}_ref_reset_{sid}") or subj_key not in ss:
+        ss[subj_key], ss[body_key] = ref.subject, ref.body
+    subject = st.text_input("Předmět", key=subj_key)
+    body = st.text_area("Text zprávy (lze upravit)", key=body_key, height=360)
+    st.caption("Nevkládejte jméno, rodné číslo ani jiné identifikační údaje pacienta. Odeslání je v prototypu pouze simulované.")
+    if st.button("Odeslat (simulace)", type="primary", disabled=bool(ref.blockers) or not body.strip()):
+        ref.subject, ref.body = subject, body
         st.success(simulate_send(ref))
+        with st.expander("Text, který by byl odeslán", expanded=True):
+            st.text(f"Předmět: {ref.subject}\n\n{ref.body}")
         st.metric("Čas od načtení případu do odeslání referral", f"{time.time() - ss[f'{P}_t0']:.0f} s")
         ss.pop(f"{P}_referral", None)
+        ss.pop(subj_key, None)
+        ss.pop(body_key, None)
 
 disclaimer()
 st.caption(f"Datum hodnocení: {date.today():%d. %m. %Y}")
