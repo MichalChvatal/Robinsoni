@@ -13,6 +13,7 @@ Run: `.venv\Scripts\python.exe -m streamlit run app/Home.py`. Tests: `tests/test
 - Widgets of hidden steps lose their state → the confirmed `PatientProfile` is kept in `{prefix}_profile` and re-applied via `apply_profile` when the detail step is shown again.
 - Raw report text is deleted from session right after successful extraction.
 - Shared form `profile_form(prefix, lay=...)` – decision tree: 1 diagnóza → 2 rozsah → 3 léčebná situace/linie/léčba → 4 biomarkery → 5 ECOG/věk/pohlaví/polykání. Every input has an "unknown" option.
+- Each form section is `st.container(border=True, key=f"{prefix}_sec{n}")` styled by `_form_css` (white card, own accent colour, white inputs with visible frame). App theme is forced light in `.streamlit/config.toml` so widgets do not follow the OS dark mode.
 - Keys are prefixed (`wiz_`, `doc_`, `pat_`); `reset(prefix)` deletes them; inactivity timeout 15 min (`SESSION_TIMEOUT_S`) clears all three.
 - Prefill via `apply_profile` (demo case or extraction) before widgets render, then `st.rerun()`.
 - `st.cache_resource` only for reference catalog (`get_catalog`), never for patient data.

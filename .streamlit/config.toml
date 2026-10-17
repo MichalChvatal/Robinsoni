@@ -8,3 +8,10 @@ runOnSave = false
 [client]
 toolbarMode = "viewer"
 showSidebarNavigation = false
+
+[theme]
+base = "light"
+primaryColor = "#0b6a8d"
+backgroundColor = "#f7f9fc"
+secondaryBackgroundColor = "#eef4f8"
+textColor = "#182338"

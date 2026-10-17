@@ -42,6 +42,14 @@ def test_home_renders_role_choice():
 
 
 @requires_catalog
+def test_doctor_choice_offers_form_first():
+    at = _run()
+    _click(at, "wiz_role_doc")
+    keys = [b.key for b in at.button if b.key in ("wiz_choice_form", "wiz_choice_report")]
+    assert keys == ["wiz_choice_form", "wiz_choice_report"]
+
+
+@requires_catalog
 def test_trialink_title_goes_home():
     at = _doctor_with_case("Case 1 – CRC, KRAS G13D, metastatický")
     _click(at, "wiz_home")
@@ -61,6 +69,8 @@ def test_doctor_flow_case2_to_simulated_referral():
     assert at.session_state["wiz_step"] == "detail"
     _click(at, "wiz_search")
     assert at.session_state["wiz_step"] == "results"
+    detail = [e for e in at.expander if e.label.startswith("Detail kritérií")]
+    assert detail and all(not e.proto.expanded for e in detail)
     text = " ".join(m.value for m in at.markdown)
     assert "MSD - jícen" in text
     _click(at, "doc_ref_2025/R46")

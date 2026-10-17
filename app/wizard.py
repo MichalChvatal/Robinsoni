@@ -141,10 +141,10 @@ def step_doc_choice() -> None:
     st.markdown("### Vyberte způsob zadání údajů pacienta")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    _card(c1, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
-          "Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.", _go, ("report",))
-    _card(c2, "wiz_choice_form", "📝 Vyplnit formulář",
+    _card(c1, "wiz_choice_form", "📝 Vyplnit formulář",
           "Krokový formulář: diagnóza → rozsah onemocnění → předchozí léčba → biomarkery.", _go, ("detail",))
+    _card(c2, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
+          "Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.", _go, ("report",))
 
 
 def _load_report(prefix: str) -> None:
@@ -312,7 +312,7 @@ def _doctor_results(studies, profile) -> list:
             st.info("Žádná studie v této skupině.")
         for r in items:
             with st.container(border=True):
-                render_result(r, profile=profile)
+                render_result(r, profile=profile, collapsed=True)
                 if allow_referral and st.button("✉️ Připravit referral", key=f"{p}_ref_{r.study.study_id}"):
                     ss[f"{p}_referral"] = r.study.study_id
 
