@@ -115,11 +115,13 @@ LOGO = Path(__file__).resolve().parent / "static" / "mou_logo.svg"
 
 def brand_header(key: str, on_home=None) -> bool:
     """MOÚ logo in the sticky top bar + clickable TriaLink title. Returns True when the title was clicked."""
+    # Logo (~5.5rem) + TriaLink (~8.5rem) are positioned as one group centred in the sticky top bar.
     st.markdown(f"""<style>
-.st-key-{key} {{position: fixed; top: 0.55rem; left: 7.6rem; z-index: 1000001; width: auto !important;}}
+.st-key-{key} {{position: fixed; top: 0.55rem; left: calc(50% - 1.1rem); z-index: 1000001; width: auto !important;}}
 .st-key-{key} button {{padding: 0; min-height: 0;}}
 .st-key-{key} button p {{font-size: 1.9rem; font-weight: 700; line-height: 1.2;}}
-[data-testid="stHeaderLogo"], [data-testid="stLogo"] {{height: 2.6rem; background: #fff; padding: 4px 8px; border-radius: 6px;}}
+[data-testid="stHeaderLogo"], [data-testid="stLogo"] {{height: 2.6rem; background: #fff; padding: 4px 8px; border-radius: 6px;
+  position: fixed; top: 0.6rem; left: calc(50% - 7.4rem); z-index: 1000001;}}
 </style>""", unsafe_allow_html=True)
     if LOGO.is_file():
         st.logo(str(LOGO), size="large", link="https://www.mou.cz")
