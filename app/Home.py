@@ -1,7 +1,13 @@
-import streamlit as st
+import sys
+from pathlib import Path
 
-import wizard
-from common import brand_header, get_catalog, page_setup
+# Repo sources must win over a stale installed copy of `trialink` in site-packages (Streamlit Cloud).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import streamlit as st  # noqa: E402
+
+import wizard  # noqa: E402
+from common import brand_header, get_catalog, page_setup  # noqa: E402
 
 page_setup("Průvodce", "wiz", "doc", "pat")
 
