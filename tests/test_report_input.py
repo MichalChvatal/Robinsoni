@@ -91,6 +91,18 @@ def test_missing_facts_default_to_unknown(services):
     assert at.selectbox(key="pat_lines").options[0] == "— nevím / nezadáno —"
 
 
+def test_her2_only_for_related_diagnoses(services):
+    at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
+    at.button(key="wiz_role_pat").click().run()
+    at.button(key="wiz_no_report").click().run()
+    her2 = lambda: [s for s in at.selectbox if s.key == "pat_her2"]  # noqa: E731
+    assert her2()  # diagnosis unknown -> visible
+    at.selectbox(key="pat_icd").set_value("C61").run()
+    assert not her2()
+    at.selectbox(key="pat_icd").set_value("C50").run()
+    assert her2()
+
+
 def test_report_goes_to_review_without_cloud_call(services):
     _, cloud = services
     at = _patient_review(REPORT)

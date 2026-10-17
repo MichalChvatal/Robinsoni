@@ -208,6 +208,13 @@ def disclaimer(lay: bool = False) -> None:
 
 
 UNKNOWN = "— nevím / nezadáno —"
+# HER2 IHC status is routinely tested only for these sites (breast, oesophagus/stomach, colorectum, uterus).
+HER2_SITES = ("C50", "C15", "C16", "C18", "C19", "C20", "C54")
+
+
+def her2_relevant(diagnosis: str | None) -> bool:
+    """Unknown diagnosis keeps the field visible."""
+    return not diagnosis or diagnosis.startswith(HER2_SITES)
 
 
 def _opt(options: dict) -> list:
@@ -333,7 +340,9 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     st.markdown("#### 4 · Biomarkery" if not lay else "#### 4 · Výsledky vyšetření nádoru (biomarkery)")
     if lay:
         st.caption(" · ".join(f"**{k}**: {TOOLTIPS[k]}" for k in ("KRAS", "HER2", "PD-L1")))
-    her2 = st.selectbox("HER2", _opt(HER2_STATUSES), format_func=_fmt(HER2_STATUSES), key=f"{prefix}_her2", help=tip("HER2"))
+    her2 = None
+    if her2_relevant(diagnosis) or ss.get(f"{prefix}_her2"):
+        her2 = st.selectbox("HER2", _opt(HER2_STATUSES), format_func=_fmt(HER2_STATUSES), key=f"{prefix}_her2", help=tip("HER2"))
     bio_rows = st.data_editor(ss.get(f"{prefix}_bio_init", []) or [{"marker": "", "status": "pozitivni", "varianta": "", "hodnoty": "", "rozpor": False}],
                               num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch", column_config=biomarker_column_config())
 
