@@ -84,22 +84,26 @@ def _nav() -> None:
 
 CARD_KEYS = ("wiz_role_doc", "wiz_role_pat", "wiz_choice_report", "wiz_choice_form")
 CARD_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in CARD_KEYS) + """{
-  min-height: 170px; padding: 1.4rem 1.6rem; border-radius: 0.8rem; justify-content: flex-start; align-items: flex-start;
-  text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s;}
+  min-height: 170px; padding: 1.4rem 1.6rem; border-radius: 1.1rem; justify-content: flex-start; align-items: flex-start;
+  text-align: left; background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(236,246,251,0.9));
+  border: 1px solid rgba(11,106,141,0.12); box-shadow: 0 12px 24px rgba(14, 46, 72, 0.08);
+  transition: border-color .15s, box-shadow .15s, transform .15s, background .15s;}
 """ + ", ".join(f".st-key-{k} button:hover" for k in CARD_KEYS) + """{
-  border-color: #ff4b4b; box-shadow: 0 4px 14px rgba(0,0,0,.08); transform: translateY(-2px);}
+  border-color: rgba(11,106,141,0.28); box-shadow: 0 18px 32px rgba(14, 46, 72, 0.12); transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(243,251,255,1), rgba(228,242,247,1));}
 """ + ", ".join(f".st-key-{k} button p" for k in CARD_KEYS) + """{
-  white-space: pre-line; font-size: 1rem; line-height: 1.5; text-align: left;}
+  white-space: pre-line; font-size: 1rem; line-height: 1.55; text-align: left; color: #1d2d3d;}
 """ + ", ".join(f".st-key-{k} button p strong" for k in CARD_KEYS) + """{
-  display: block; font-size: 1.35rem; margin-bottom: 0.6rem;}
+  display: block; font-size: 1.45rem; margin-bottom: 0.6rem; line-height: 1.2; color: #0b4d69;}
 </style>"""
 SEARCH_KEYS = ("wiz_search", "wiz_to_results")
 SEARCH_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in SEARCH_KEYS) + """{
-  background-color: #1c64f2; border-color: #1c64f2; color: #fff;}
+  background: linear-gradient(90deg, #0b6a8d, #1d8ab9); border-color: transparent; color: #fff; border-radius: 0.9rem;
+  box-shadow: 0 14px 24px rgba(11,106,141,0.2);}
 """ + ", ".join(f".st-key-{k} button:hover" for k in SEARCH_KEYS) + """{
-  background-color: #1a56db; border-color: #1a56db; color: #fff;}
+  background: linear-gradient(90deg, #085d7f, #1978a5); border-color: transparent; color: #fff;}
 """ + ", ".join(f".st-key-{k} button:disabled" for k in SEARCH_KEYS) + """{
-  background-color: #9db8f5; border-color: #9db8f5; color: #fff;}
+  background: linear-gradient(90deg, #9cc7db, #aed8e8); border-color: transparent; color: rgba(255,255,255,0.9);}
 </style>"""
 
 
@@ -123,10 +127,10 @@ def step_role() -> None:
     st.markdown("### Kdo jste?")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    _card(c1, "wiz_role_doc", "👩‍⚕️ Jsem lékař",
+    _card(c1, "wiz_role_doc", "🩺 Jsem lékař",
           "Zadejte údaje ze zprávy nebo formuláře, získejte seznam vhodných studií a pošlete referral studijnímu týmu.",
           _choose_role, (DOCTOR,))
-    _card(c2, "wiz_role_pat", "🙂 Jsem pacient",
+    _card(c2, "wiz_role_pat", ":red[✚] Jsem pacient",
           "Nahrajte svou lékařskou zprávu a zjistěte, o kterých studiích si můžete promluvit se svým onkologem.",
           _choose_role, (PATIENT,))
     st.caption("Aplikace neukládá žádné údaje o pacientech. Vše existuje jen v paměti po dobu relace a smaže se "

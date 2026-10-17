@@ -1,6 +1,7 @@
 """Shared Streamlit helpers. Patient data lives only in st.session_state (server RAM) and is cleared on reset."""
 from __future__ import annotations
 
+import base64
 import os
 import sys
 import time
@@ -110,22 +111,143 @@ def reset(prefix: str) -> None:
         del st.session_state[key]
 
 
-LOGO = Path(__file__).resolve().parent / "static" / "mou_logo.svg"
+ROOT_LOGO = Path(__file__).resolve().parent.parent / "logo.svg"
+LEGACY_LOGO = Path(__file__).resolve().parent / "static" / "mou_logo.svg"
+LOGO = ROOT_LOGO if ROOT_LOGO.is_file() else LEGACY_LOGO
 
 
 def brand_header(key: str, on_home=None) -> bool:
-    """MOÚ logo in the sticky top bar + clickable TriaLink title. Returns True when the title was clicked."""
-    # Logo (~5.5rem) + TriaLink (~8.5rem) are positioned as one group centred in the sticky top bar.
+    """Header with MOÚ logo on the left and Trialink logo/title centered, both clickable."""
     st.markdown(f"""<style>
-.st-key-{key} {{position: fixed; top: 0.55rem; left: calc(50% - 1.1rem); z-index: 1000001; width: auto !important;}}
-.st-key-{key} button {{padding: 0; min-height: 0;}}
-.st-key-{key} button p {{font-size: 1.9rem; font-weight: 700; line-height: 1.2;}}
-[data-testid="stHeaderLogo"], [data-testid="stLogo"] {{height: 2.6rem; background: #fff; padding: 4px 8px; border-radius: 6px;
-  position: fixed; top: 0.6rem; left: calc(50% - 7.4rem); z-index: 1000001;}}
+:root {{
+  --brand-bg: #eef7fb;
+  --brand-panel: rgba(255, 255, 255, 0.86);
+  --brand-primary: #0b6a8d;
+  --brand-primary-strong: #064d6b;
+  --brand-accent: #3bc7d8;
+  --brand-surface: #f6f9fc;
+  --brand-ink: #182338;
+  --brand-muted: #53657a;
+  --brand-border: rgba(11, 106, 141, 0.14);
+}}
+.stApp {{
+  background: radial-gradient(circle at top left, #f0fafe 0%, #eef4ff 32%, #f7f9fc 100%);
+  color: var(--brand-ink);
+}}
+.block-container {{
+  padding-top: 5rem !important;
+  max-width: 1280px !important;
+}}
+[data-testid="stHeader"] {{
+  background: linear-gradient(90deg, rgba(8, 94, 124, 0.98), rgba(18, 124, 165, 0.96));
+  box-shadow: 0 8px 30px rgba(11, 62, 83, 0.18);
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+  height: 64px !important;
+}}
+[data-testid="stHeader"] .stAppHeader {{
+  background: transparent;
+}}
+[data-testid="stSidebar"] {{
+  background: rgba(246,249,252,0.85);
+  border-right: 1px solid rgba(11, 106, 141, 0.1);
+}}
+.st-key-{key} {{
+  width: auto !important;
+  display: flex; justify-content: center; align-items: center;
+}}
+.st-key-{key} button {{
+  padding: 0.25rem 0.7rem; min-height: 0; background: transparent; border: none; color: white; font-weight: 700;
+  box-shadow: none; border-radius: 999px;
+}}
+.st-key-{key} button p {{font-size: 1.3rem; font-weight: 800; line-height: 1.2; color: white; margin: 0;}}
+div.stButton > button {{
+  border-radius: 0.9rem; border: 1px solid rgba(11, 106, 141, 0.12); background: linear-gradient(180deg, #ffffff, #edf6fb);
+  color: var(--brand-ink); box-shadow: 0 10px 22px rgba(11, 62, 83, 0.08); transition: transform .15s ease, box-shadow .15s ease;
+}}
 </style>""", unsafe_allow_html=True)
-    if LOGO.is_file():
-        st.logo(str(LOGO), size="large", link="https://www.mou.cz")
-    return st.button("TriaLink", key=key, type="tertiary", on_click=on_home, help="Zpět na úvod")
+
+    logo_css = ""
+    if ROOT_LOGO.is_file():
+        logo_uri = "data:image/svg+xml;base64," + base64.b64encode(ROOT_LOGO.read_bytes()).decode()
+        # Streamlit button labels cannot contain HTML, so the logo is drawn as the button background.
+        logo_css = f""".st-key-{key} button {{
+                width: 170px !important; height: 54px !important;
+                background: url("{logo_uri}") center / contain no-repeat content-box padding-box #fff !important;
+            }}
+            .st-key-{key} button p {{
+                position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+            }}"""
+
+    st.markdown(
+        f"""
+        <style>
+            .brand-header-bar {{
+                position: fixed;
+                left: 0;
+                top: 0;
+                right: 0;
+                height: 64px;
+                z-index: 1000001;
+                background: linear-gradient(90deg, rgba(8, 94, 124, 0.98), rgba(18, 124, 165, 0.96));
+                box-shadow: 0 8px 30px rgba(11, 62, 83, 0.18);
+                border-bottom: 1px solid rgba(255,255,255,0.18);
+            }}
+            .brand-header-left {{
+                position: fixed;
+                left: 1.25rem;
+                top: 8px;
+                z-index: 1000002;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 4px 8px;
+                border-radius: 14px;
+                background: #fff;
+                box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+            }}
+            .brand-header-left img {{
+                display: block;
+                height: 40px;
+                width: auto;
+            }}
+            .st-key-{key} {{
+                position: fixed !important;
+                left: 50% !important;
+                top: 5px !important;
+                transform: translateX(-50%) !important;
+                z-index: 1000003 !important;
+            }}
+            .st-key-{key} button {{
+                padding: 0.3rem 0.5rem !important;
+                min-height: 0 !important;
+                background: #fff !important;
+                border: none !important;
+                border-radius: 15px !important;
+                box-shadow: none !important;
+            }}
+            {logo_css}
+            @media (max-width: 420px) {{
+                .brand-header-left {{left: 0.6rem; top: 12px;}}
+                .brand-header-left img {{height: 32px;}}
+                .st-key-{key} {{left: auto !important; right: 3.2rem !important; top: 13px !important; transform: none !important;}}
+                .st-key-{key} button {{width: 120px !important; height: 38px !important;}}
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="brand-header-bar"></div>', unsafe_allow_html=True)
+
+    if LEGACY_LOGO.is_file():
+        mou_uri = "data:image/svg+xml;base64," + base64.b64encode(LEGACY_LOGO.read_bytes()).decode()
+        st.markdown(
+            f"<a class='brand-header-left' href='https://www.mou.cz' target='_blank' rel='noopener noreferrer'>"
+            f"<img src='{mou_uri}' alt='Masarykův onkologický ústav' /></a>",
+            unsafe_allow_html=True,
+        )
+
+    return st.button("TriaLink", key=key, on_click=on_home, help="Zpět na úvod")
 
 
 def biomarker_rows(p: PatientProfile) -> list[dict]:
