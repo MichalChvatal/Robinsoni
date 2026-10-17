@@ -313,10 +313,7 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     src("disease_extent")
 
     st.markdown("#### 3 · Léčebná situace a předchozí léčba" if not lay else "#### 3 · Vaše léčba")
-    setting = st.radio("Jaká léčba je plánovaná teď?" if not lay else "Jaká léčba vás teď čeká?", _opt(SETTINGS),
-                       format_func=_fmt(SETTINGS), key=f"{prefix}_setting", horizontal=True,
-                       help=tip("paliativni") if lay else None)
-    st.write("")
+    setting = ss.get(f"{prefix}_setting")
     lines = st.selectbox(
         "Počet již podaných linií léčby pokročilého onemocnění" if not lay
         else "Kolikrát už jste dostal(a) léčbu kvůli pokročilé (metastatické) nemoci?",
