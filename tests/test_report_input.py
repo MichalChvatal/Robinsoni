@@ -58,6 +58,7 @@ def test_anonymize_finds_and_masks_identifiers():
     masked = anonymize.mask(REPORT)
     assert "Jan Testovací" not in masked and "450101" not in masked and "777" not in masked
     assert "Jméno: [ANONYMIZOVÁNO]" in masked
+    assert "Byly provedeny změny: jméno, adresa a telefon byly anonymizovány." in masked
     assert "Adenokarcinom C18.6, ECOG 1." in masked
 
 
@@ -107,7 +108,7 @@ def test_report_goes_to_review_without_cloud_call(services):
     _, cloud = services
     at = _patient_review(REPORT)
     assert at.session_state["wiz_step"] == "review"
-    assert at.text_area(key="pat_report_text").value == REPORT
+    assert at.session_state["pat_report_text"] == REPORT
     assert at.warning  # suspected identifiers reported
     assert at.button(key="wiz_to_results").disabled
     cloud.assert_not_called()
@@ -116,9 +117,11 @@ def test_report_goes_to_review_without_cloud_call(services):
 def test_masking_confirmation_and_search(services):
     _, cloud = services
     at = _patient_review(REPORT)
+    assert at.warning
     at.button(key="wiz_mask").click().run()
-    masked = at.text_area(key="pat_report_text").value
+    masked = at.session_state["pat_report_text"]
     assert "450101" not in masked
+    assert not at.warning
     at.checkbox(key="pat_report_ok").check().run()
     at.button(key="wiz_to_results").click().run()
     assert not at.exception, at.exception

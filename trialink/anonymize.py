@@ -7,11 +7,12 @@ from __future__ import annotations
 import re
 
 MASK = "[ANONYMIZOVÁNO]"
+CHANGE_NOTE = "Byly provedeny změny: jméno, adresa a telefon byly anonymizovány."
 
 # Label lines like "Jméno: Jan Novák" – the label stays, the value is masked.
 _LABELLED = re.compile(
     r"(?im)^(?P<label>[ \t]*(?:jméno|příjmení|jméno a příjmení|pacient(?:ka)?|adresa|bydliště|trvalé bydliště|"
-    r"zákonný zástupce|č(?:íslo|\.)\s*pojištěnce|pojišťovna|telefon|tel\.|e-?mail)[ \t]*:[ \t]*)(?P<value>\S.*)$"
+    r"zákonný zástupce|č(?:íslo|\.)\s*pojištěnce|pojišťovna|telefon|tel\.|e-?mail)[ \t]*:[ \t]*)(?P<value>(?!\[ANONYMIZOVÁNO\])\S.*)$"
 )
 _PATTERNS = {
     "rodné číslo": re.compile(r"\b\d{6}\s?/\s?\d{3,4}\b"),
@@ -35,7 +36,9 @@ def find(text: str) -> dict[str, int]:
 
 
 def mask(text: str) -> str:
-    text = _LABELLED.sub(lambda m: m.group("label") + MASK, text or "")
+    masked = _LABELLED.sub(lambda m: m.group("label") + MASK, text or "")
     for pattern in _PATTERNS.values():
-        text = pattern.sub(MASK, text)
-    return text
+        masked = pattern.sub(MASK, masked)
+    if masked and masked != (text or "") and CHANGE_NOTE not in masked:
+        return CHANGE_NOTE + "\n\n" + masked
+    return masked
