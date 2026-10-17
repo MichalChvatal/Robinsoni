@@ -103,7 +103,7 @@ def test_admin_page_requires_password(monkeypatch):
     at.run()
     assert not at.exception, at.exception
     assert not any("Nesprávné" in e.value for e in at.error)
-    assert len(at.tabs) == 2
+    assert len(at.tabs) == 3
 
 
 def test_password_hash_and_throttle():

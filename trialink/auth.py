@@ -11,7 +11,7 @@ import time
 
 ITERATIONS = 310_000
 MAX_FAILURES = 5
-LOCKOUT_S = 300
+LOCKOUT_S = 30
 
 
 def hash_password(password: str, iterations: int = ITERATIONS) -> str:
