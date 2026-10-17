@@ -32,6 +32,9 @@ DDL = {
     "TopoMorpho": """CREATE TABLE TriaLink.TopoMorpho (
         RecordId INTEGER NOT NULL PRIMARY KEY, Skupina INTEGER NOT NULL, SkupinaNazev VARCHAR(200),
         Topo VARCHAR(4), Morfo VARCHAR(5) NOT NULL, PlatnostOd DATE, PlatnostDo DATE, SourceHash VARCHAR(64))""",
+    "BiomarkerResultType": """CREATE TABLE TriaLink.BiomarkerResultType (
+        Marker VARCHAR(50) NOT NULL, Label VARCHAR(200), OpatKod INTEGER, ResultType VARCHAR(20) NOT NULL,
+        Note VARCHAR(500), Source VARCHAR(100), SourceHash VARCHAR(64), PRIMARY KEY (Marker, ResultType))""",
 }
 
 INDEXES = {
@@ -182,6 +185,39 @@ def load_topo_morpho(conn):
     cur = conn.cursor()
     cur.execute("SELECT RecordId, Skupina, SkupinaNazev, Topo, Morfo, PlatnostOd, PlatnostDo FROM TriaLink.TopoMorpho")
     return [TopoMorphoRow(int(r[0]), int(r[1]), r[2] or "", r[3] or None, r[4], _as_date(r[5]), _as_date(r[6])) for r in cur.fetchall()]
+
+
+def save_biomarker_types(conn, rows, source_name: str, source_hash: str) -> dict[str, int]:
+    """Replace the biomarker x result-type dictionary in one transaction; unchanged source file is skipped."""
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*), MAX(SourceHash) FROM TriaLink.BiomarkerResultType")
+    count, current_hash = cur.fetchone()
+    # MAX() returns the SQLUPPER collated value, hence the case-insensitive comparison.
+    if count == len(rows) and str(current_hash or "").lower() == source_hash.lower():
+        return {"inserted": 0, "unchanged": count}
+    try:
+        cur.execute("DELETE FROM TriaLink.BiomarkerResultType")
+        cur.executemany("INSERT INTO TriaLink.BiomarkerResultType (Marker, Label, OpatKod, ResultType, Note, Source, SourceHash)"
+                        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [[r.code, r.label, r.opat_kod, r.result_type, r.note, r.source, source_hash] for r in rows])
+        cur.execute(
+            "INSERT INTO TriaLink.SourceImport (SourceName, SourceHash, ImportedAt, Records, NewVersions, Unchanged, Notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [source_name, source_hash, datetime.now(timezone.utc).replace(tzinfo=None), len(rows), len(rows), 0, '{"table": "BiomarkerResultType"}'],
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"inserted": len(rows), "unchanged": 0}
+
+
+def load_biomarker_types(conn):
+    from .biomarkers import BiomarkerTypeRow
+
+    cur = conn.cursor()
+    cur.execute("SELECT Marker, Label, OpatKod, ResultType, Note, Source FROM TriaLink.BiomarkerResultType")
+    return [BiomarkerTypeRow(r[0], r[1] or r[0], int(r[2]) if r[2] not in (None, "") else None, r[3], r[4] or "", r[5] or "")
+            for r in cur.fetchall()]
 
 
 def _as_date(value):

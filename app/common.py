@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from trialink.biomarkers import RESULT_TYPES, BiomarkerDictionary, load_file as load_biomarker_file  # noqa: E402
 from trialink.catalog import load_catalog  # noqa: E402
 from trialink.dictionaries import ICD_NAMES, TopoMorphoIndex, diagnosis_label, format_morpho, histology_from_morpho, load_file  # noqa: E402
 from trialink.matching import STATUS_CANDIDATE, STATUS_EXCLUDED, STATUS_LABELS, STATUS_VERIFY, CohortResult, sex_caution  # noqa: E402
@@ -93,6 +94,27 @@ def get_topo_morpho() -> tuple[TopoMorphoIndex | None, str]:
         return TopoMorphoIndex(rows), f"lokální soubor {name} (IRIS není nastaveno)"
     except FileNotFoundError:
         return None, "nedostupný"
+
+
+@st.cache_resource(show_spinner="Načítám číselník biomarkerů…", ttl=3600)
+def get_biomarker_dictionary() -> tuple[BiomarkerDictionary, str]:
+    """Allowed biomarker x result-type combinations from IRIS TriaLink.BiomarkerResultType, else the packaged CSV."""
+    note = "IRIS není nastaveno"
+    if os.getenv("IRIS_HOST") and os.getenv("IRIS_PASSWORD"):
+        try:
+            from trialink import db
+            conn = db.connect()
+            try:
+                rows = db.load_biomarker_types(conn)
+            finally:
+                conn.close()
+            if rows:
+                return BiomarkerDictionary(rows), f"InterSystems IRIS · TriaLink.BiomarkerResultType ({len(rows)} kombinací)"
+            note = "tabulka v IRIS je prázdná – spusťte python -m trialink.biomarkers"
+        except Exception as exc:
+            note = f"IRIS nedostupné ({type(exc).__name__})"
+    rows, _, name, _ = load_biomarker_file()
+    return BiomarkerDictionary(rows), f"lokální soubor {name} ({note})"
 
 
 def page_setup(title: str, prefix: str, *also_reset: str) -> None:
@@ -251,16 +273,19 @@ div.stButton > button {{
 
 
 def biomarker_rows(p: PatientProfile) -> list[dict]:
-    return [{"marker": b.marker, "status": b.status, "varianta": b.variant or "",
-             "hodnoty": ", ".join(f"{v:g}" for v in b.values), "rozpor": b.conflict} for b in p.biomarkers.values()]
+    bio_dict, _ = get_biomarker_dictionary()
+    return [{"marker": bio_dict.canonical(b.marker) or b.marker, "status": b.status, "typ": b.result_type,
+             "varianta": b.variant or "", "hodnoty": ", ".join(f"{v:g}" for v in b.values), "rozpor": b.conflict}
+            for b in p.biomarkers.values()]
 
 
-def rows_to_biomarkers(rows: list[dict]) -> dict[str, BiomarkerResult]:
+def rows_to_biomarkers(rows: list[dict], bio_dict: BiomarkerDictionary | None = None) -> dict[str, BiomarkerResult]:
     out = {}
     for r in rows:
         marker = (r.get("marker") or "").strip()
         if not marker:
             continue
+        marker = (bio_dict.canonical(marker) if bio_dict else None) or marker
         values = []
         for part in str(r.get("hodnoty") or "").replace(";", ",").split(","):
             part = part.strip().replace("%", "")
@@ -270,7 +295,7 @@ def rows_to_biomarkers(rows: list[dict]) -> dict[str, BiomarkerResult]:
                 except ValueError:
                     pass
         b = BiomarkerResult(marker.upper(), r.get("status") or "nevysetreno", (r.get("varianta") or "").strip() or None,
-                            values, conflict=bool(r.get("rozpor")))
+                            values, conflict=bool(r.get("rozpor")), result_type=r.get("typ") or None)
         out[b.marker] = b
     return out
 
@@ -283,11 +308,16 @@ def rows_to_therapies(rows: list[dict]) -> list[TherapyEpisode]:
     return [TherapyEpisode(r["lék / režim"].strip(), r.get("režim") or None) for r in rows if (r.get("lék / režim") or "").strip()]
 
 
-def biomarker_column_config():
+def biomarker_column_config(bio_dict: BiomarkerDictionary, extra_markers: list[str] = ()):
+    markers = bio_dict.codes + sorted({m for m in extra_markers if m and m not in bio_dict.labels})
     return {
-        "marker": st.column_config.TextColumn("Biomarker", help="Např. KRAS, HER2, ER, PD-L1 TPS, PD-L1 CPS, TMB, dMMR/MSI-H, BRCA1"),
+        "marker": st.column_config.SelectboxColumn("Biomarker", options=markers, format_func=bio_dict.label,
+                                                   help="Výběr z číselníku biomarkerů (např. KRAS, ER, PD-L1 TPS, dMMR/MSI-H)"),
         "status": st.column_config.SelectboxColumn("Výsledek", options=list(BIOMARKER_STATUSES), default="pozitivni"),
-        "varianta": st.column_config.TextColumn("Varianta", help="Např. G12C, G13D, V600E"),
+        "typ": st.column_config.SelectboxColumn("Typ nálezu", options=list(RESULT_TYPES), format_func=RESULT_TYPES.get,
+                                                help="Mutace / exprese / fúze / amplifikace / delece / metylace / jiný – "
+                                                     "povolené typy pro daný biomarker určuje číselník"),
+        "varianta": st.column_config.TextColumn("Varianta", help="Jen u typu Mutace / varianta, např. G12C, G13D, V600E"),
         "hodnoty": st.column_config.TextColumn("Hodnota(y) %/skóre", help="Více hodnot oddělte čárkou (rozpor)"),
         "rozpor": st.column_config.CheckboxColumn("Rozpor"),
     }
@@ -461,8 +491,20 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     her2 = None
     if her2_relevant(diagnosis) or ss.get(f"{prefix}_her2"):
         her2 = st.selectbox("HER2", _opt(HER2_STATUSES), format_func=_fmt(HER2_STATUSES), key=f"{prefix}_her2", help=tip("HER2"))
-    bio_rows = st.data_editor(ss.get(f"{prefix}_bio_init", []) or [{"marker": "", "status": "pozitivni", "varianta": "", "hodnoty": "", "rozpor": False}],
-                              num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch", column_config=biomarker_column_config())
+    bio_dict, bio_source = get_biomarker_dictionary()
+    bio_init = ss.get(f"{prefix}_bio_init", []) or [{"marker": None, "status": "pozitivni", "typ": None, "varianta": "", "hodnoty": "", "rozpor": False}]
+    bio_rows = st.data_editor(bio_init, num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch",
+                              column_config=biomarker_column_config(bio_dict, [r.get("marker") for r in bio_init]))
+    biomarkers = rows_to_biomarkers(bio_rows, bio_dict)
+    bio_issues = bio_dict.check_all(biomarkers.values())
+    if bio_issues:
+        st.warning(("**Zkontrolujte prosím zadané biomarkery:**\n" if lay else "**Neobvyklá kombinace podle číselníku biomarkerů** "
+                    "(údaj se přesto použije):\n") + "\n".join(f"- {i}" for i in bio_issues))
+    if not lay:
+        with st.expander("Povolené kombinace biomarker × typ nálezu"):
+            st.dataframe([{"Biomarker": bio_dict.label(c), "Povolené typy nálezu": bio_dict.describe(c)} for c in bio_dict.codes],
+                         hide_index=True, width="stretch")
+            st.caption(f"Zdroj číselníku: {bio_source}")
 
     st.markdown("#### 5 · Další kritéria" if not lay else "#### 5 · Celkový stav")
     implied_sex = sex_for_diagnosis(diagnosis)
@@ -481,7 +523,7 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     p = PatientProfile(
         icd10=diagnosis, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
         prior_palliative_lines=lines, her2_status=her2,
-        biomarkers=rows_to_biomarkers(bio_rows), therapies=therapies, ecog=ecog,
+        biomarkers=biomarkers, therapies=therapies, ecog=ecog,
         age=int(age) if age is not None else None, sex=sex, can_swallow={"ano": True, "ne": False}.get(swallow),
         conflicts=list(ss.get(f"{prefix}_conflicts", [])), evidence=evidence,
     )

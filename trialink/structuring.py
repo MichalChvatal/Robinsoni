@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import catalog
+from .biomarkers import default_dictionary
 from .extraction import DEFAULT_MODEL, _create, make_client
 from .model import EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS
 from .sonis import StudyRecord
@@ -38,7 +39,7 @@ Povolená pole:
 - ecog / "<=" / číslo;  age / ">=" nebo "<=" / číslo;  sex / eq / "F"|"M";  can_swallow / eq / true (jen pokud výslovně vyžadováno polykání tablet)
 - manual / review / český text – důležité kritérium, které nejde vyjádřit poli výše
 - any_of / any / seznam podkritérií (bez kind a quote) pro jasné NEBO
-Názvy markerů: KRAS, NRAS, BRAF, EGFR, ALK, ROS1, RET, MET, HER2, ER, PR, BRCA1, BRCA2, PALB2, PIK3CA, ESR1, IDH, MTAP, CCNE1, dMMR/MSI-H, HPV, p16, TROP2, FGFR, NTRK.
+Názvy markerů (kódy z číselníku biomarkerů): {", ".join(default_dictionary().codes)}.
 Typicky: diagnóza, histologie, rozsah, léčebná situace, linie, klíčové biomarkery, klíčová předchozí léčba, ECOG, věk, polykání.
 """
 
