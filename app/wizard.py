@@ -247,9 +247,8 @@ def step_review() -> None:
         st.warning("Text pravděpodobně obsahuje osobní údaje: " + ", ".join(f"{k} ({n}×)" for k, n in found.items()))
         st.button("🛡️ Nahradit je značkou [ANONYMIZOVÁNO]", on_click=_mask, args=(key,), key="wiz_mask")
     else:
-        st.success("Automatická kontrola nenašla žádné zjevné osobní údaje. **Přesto text prosím projděte a ověřte, že "
-                   "neobsahuje žádné citlivé údaje** – jméno, rodné číslo, datum narození, adresu, telefon, e-mail ani číslo "
-                   "pojištěnce.")
+        st.success("Bylo anonymizováno. **Přesto text prosím projděte a ověřte, že neobsahuje žádné citlivé údaje** – "
+                   "jméno, rodné číslo, datum narození, adresu, telefon, e-mail ani číslo pojištěnce.")
     ok = st.checkbox("Zkontroloval(a) jsem text a neobsahuje jméno ani jiné identifikační údaje. "
                      "Souhlasím s jeho odesláním do cloudové služby k vyhodnocení.", key=f"{p}_report_ok")
     ready = ok and bool(text.strip())
