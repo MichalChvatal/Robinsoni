@@ -39,6 +39,11 @@ def test_text_from_upload_txt_and_image(inputs, monkeypatch):
     assert inputs.text_from_upload("foto.jpg", b"img") == "OCR"
     local_ocr.assert_called_once_with(b"img")
 
+    pdf_reader = Mock(return_value="PDF text")
+    monkeypatch.setattr(inputs, "pdf_reader", Mock(pdf_to_text=pdf_reader))
+    assert inputs.text_from_upload("report.pdf", b"pdf") == "PDF text"
+    pdf_reader.assert_called_once_with(b"pdf")
+
 
 @pytest.mark.parametrize("name,data", [("a.txt", b""), ("a.txt", b"   "), ("a.txt", b"x" * 40_001)],
                          ids=["missing", "empty", "too-long"])

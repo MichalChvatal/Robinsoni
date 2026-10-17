@@ -8,13 +8,13 @@ Robinson 2
 
 ## Lokální OCR zpráv
 
-Průvodce (krok **Lékařská zpráva**) přijme vložený text, `.txt` (UTF-8 / cp1250),
-JPG/PNG nebo fotku z kamery. Tlačítko **Pokračovat ke kontrole textu** převede
-soubor na text lokálně (OCR) a nevolá OpenAI. V kroku **Kontrola a anonymizace**
-uživatel opraví text, může nechat automaticky nahradit rodné číslo, telefon,
-e-mail a řádky se jménem/adresou a musí potvrdit kontrolu. Až tlačítka
-**Zobrazit detail** nebo **Vyhledat klinickou studii** odešlou text do cloudové
-extrakce; poté se text z paměti relace smaže. Fotografie se do OpenAI neposílá.
+V lékařském i pacientském rozhraní lze načíst JPG/PNG, PDF nebo UTF-8 `.txt`.
+Tlačítko **Načíst text do zprávy (lokálně)** vyplní upravitelnou kolonku
+**Anonymizovaná zpráva**; nevolá OpenAI. Uživatel opraví rozpoznaný text a
+odstraní identifikátory. OCR samo zprávu neanonymizuje.
+Až tlačítko **Extrahovat parametry** (lékař) nebo **Vyplnit formulář ze zprávy**
+(pacient) odešle obsah této kolonky do současné cloudové extrakce.
+Fotografie ani PDF se do OpenAI neposílají.
 
 - Nainstalujte Python závislosti: `python -m pip install -r requirements.txt`.
 - Na serveru aplikace nainstalujte Tesseract OCR s českými jazykovými daty `ces`.
@@ -26,11 +26,20 @@ extrakce; poté se text z paměti relace smaže. Fotografie se do OpenAI neposí
   Na Windows musí být `tesseract.exe` na `PATH`, případně nastavte `TESSERACT_CMD`
   v `.env` na jeho úplnou cestu. Dostupnost jazyků ověří `tesseract --list-langs`.
 - Pro Streamlit Community Cloud jsou systémové balíčky uvedeny v `packages.txt`.
-- Limity: 10 MB, 20 megapixelů, 60 sekund OCR, 40 000 znaků zprávy.
-  HEIC a PDF zatím nejsou podporovány.
+- PDF: použije se textová vrstva každé stránky; stránky bez textu se vykreslí
+  na 300 DPI a přečtou českým OCR. Volba **Vynutit OCR všech stránek PDF**
+  ignoruje textovou vrstvu (například nekvalitní dřívější OCR).
+  Zcela bílé stránky se přeskočí; selhání jiné stránky odmítne celý import,
+  aby se do kolonky nevložila neúplná zpráva. Původní text kolonky zůstane zachován.
+- Limity: 10 MB, 20 megapixelů na obrázek/stránku, 60 sekund na OCR stránky,
+  40 000 znaků zprávy. PDF navíc nejvýše 10 stránek a 120 sekund na celý dokument,
+  včetně načítání a vykreslování. Zaheslovaná PDF a HEIC nejsou podporovány.
+- PDF zpracovává `pypdfium2` (text i vykreslování), bez potřeby Poppleru.
+  Dokument běží v odděleném lokálním procesu s časovým limitem, stránky postupně
+  v RAM. Při nasazení stačí znovu nainstalovat Python závislosti z `requirements.txt`.
 
 OCR používá lokální proces Tesseractu s obrazem na standardním vstupu a textem
-na standardním výstupu, bez dočasných souborů. Fotografie a text zůstávají pouze
+na standardním výstupu, bez dočasných souborů. Fotografie, PDF a text zůstávají pouze
 v RAM, nejsou logovány ani cachovány. Text v kolonce podléhá stejnému vymazání
 a kontrole nečinnosti jako ostatní údaje relace a při odeslání se kolonka vyčistí.
 Požadavek na lokální LLM stále není splněn: následná extrakce používá OpenAI cloud.

@@ -47,6 +47,13 @@ def test_explicit_language_directory_is_preserved(monkeypatch):
     assert "--tessdata-dir" not in run.call_args.args[0]
 
 
+def test_pdf_remaining_time_budget_is_forwarded(monkeypatch):
+    run = Mock(return_value=subprocess.CompletedProcess([], 0, b"OCR", b""))
+    monkeypatch.setattr(ocr.subprocess, "run", run)
+    assert ocr.image_to_text(_image_bytes(), timeout=5) == "OCR"
+    assert run.call_args.kwargs["timeout"] == 5
+
+
 def test_missing_bundled_model_is_reported(monkeypatch, tmp_path):
     monkeypatch.delenv("TESSDATA_PREFIX", raising=False)
     monkeypatch.setattr(ocr, "BUNDLED_TESSDATA", tmp_path)
