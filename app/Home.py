@@ -13,7 +13,7 @@ page_setup("Průvodce", "wiz", "doc", "pat")
 
 brand_header("wiz_home", on_home=wizard.go_home)
 studies, source, issues = get_catalog()
-st.caption(f"Průvodce klinickými studiemi MOÚ · {len(studies)} studií s otevřeným náborem · zdroj: {source}")
+
 
 wizard.run(studies)
 
