@@ -197,6 +197,8 @@ def step_report() -> None:
             "V dalším kroku text zkontrolujete a odstraníte osobní údaje – teprve potom se odešle k automatickému "
             "vyhodnocení do cloudové služby OpenAI.")
     modes = {"file": "📁 Nahrát soubor", "text": "✍️ Vložit text", "photo": "📷 Vyfotit zprávu"}
+    if not lay:  # doctors usually paste text from the hospital system
+        modes = {"text": modes["text"], "file": modes["file"], "photo": modes["photo"]}
     mode = st.radio("Jak chcete zprávu vložit?", list(modes), format_func=modes.get, key=f"{p}_mode", horizontal=True)
     if mode == "file":
         st.file_uploader("Textový soubor (.txt), PDF nebo fotografie / scan (JPG, PNG), max. 10 MB",
