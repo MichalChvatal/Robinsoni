@@ -1,0 +1,62 @@
+kod;nazev;opat_kod;mutace;exprese;fuze;amplifikace;delece;metylace;jiny;zdroj
+ALK;ALK;1;;x;x;;;;;biomarkery_prehled_upraveno.xlsx
+AR;AR;2;;x;;;;;;biomarkery_prehled_upraveno.xlsx
+ARID2;ARID2 mutace;;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+ATM;ATM mutace;3;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+ATRX;ATRX mut./ztr. exprese;29;x;x;;;x;;;biomarkery_prehled_upraveno.xlsx
+CDK4;CDK4 amplifikace;;;;;x;;;;biomarkery_prehled_upraveno.xlsx
+BRAF;BRAF mutace;4;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+BRCA1;BRCA1;5;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+BRCA2;BRCA2;6;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+CDKN2A/B;CDKN2A/B mutace;30;x;;;;x;;;biomarkery_prehled_upraveno.xlsx
+CLDN18.2;CLDN18.2;44;;x;;;;;;biomarkery_prehled_upraveno.xlsx
+CNA;CNA;31;;;;x;x;;;biomarkery_prehled_upraveno.xlsx
+EBV;EBV;46;;;;;;;Vírusová pozitivita;biomarkery_prehled_upraveno.xlsx
+EGFR;EGFR mutace;7;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+ER;ER;8;;x;;;;;% pozitivních buněk;biomarkery_prehled_upraveno.xlsx
+ESR1;ESR1;45;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+PD-L1 TPS;Exprese PD-L1 – TPS;9;;x;;;;;TPS skóre;biomarkery_prehled_upraveno.xlsx
+PD-L1 CPS;Exprese PD-L1 – CPS;9;;x;;;;;CPS skóre;biomarkery_prehled_upraveno.xlsx
+FGFR;FGFR mutace;10;x;;x;x;;;;biomarkery_prehled_upraveno.xlsx
+FRS2;FRS2 amplifikace;;;;;x;;;;biomarkery_prehled_upraveno.xlsx
+GIS/HRD;GIS / HRD;;;;;;;;GIS skóre / HRD pozitivní–negativní;biomarkery_prehled_upraveno.xlsx
+H3K27M;H3K27M mutace;32;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+HER2;HER2;11;x;x;;x;;;"IHC skóre (0, 1+, 2+, 3+); ISH poměr HER2/CEP17";biomarkery_prehled_upraveno.xlsx
+IDH;IDH mutace;12;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+IDH1;IDH1 mutace;41;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+IDH2;IDH2 mutace;42;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+1p/19q;Kodelécia 1p/19q;13;;;;;x;;;biomarkery_prehled_upraveno.xlsx
+KRAS;KRAS;14;x;;;;;;Konkrétní varianta (G12C, G13D…);biomarkery_prehled_upraveno.xlsx
+MAPK;MAPK alterace;33;x;;x;x;;;Iné alterácie dráhy;biomarkery_prehled_upraveno.xlsx
+MDM2;MDM2 amplifikace;;;;;x;;;;biomarkery_prehled_upraveno.xlsx
+MET;MET;15;x;x;x;x;;;Exon 14 skipping;biomarkery_prehled_upraveno.xlsx
+MGMTp;MGMTp metylácia;34;;;;;;x;;biomarkery_prehled_upraveno.xlsx
+dMMR/MSI-H;dMMR/MSI-H;16;;;;;;;MMR status (pMMR / dMMR) / MSI status (MSS / MSI-H);biomarkery_prehled_upraveno.xlsx
+MYB;MYB alterace;35;x;;x;;;;;biomarkery_prehled_upraveno.xlsx
+MYBL1;MYBL1 alterace;36;x;;x;;;;;biomarkery_prehled_upraveno.xlsx
+MYCN;MYCN amplifikácia;37;;;;x;;;;biomarkery_prehled_upraveno.xlsx
+NRAS;NRAS;17;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+NTRK;NTRK fúzia;18;;;x;;;;;biomarkery_prehled_upraveno.xlsx
+p16;p16;19;;x;;;x;;;biomarkery_prehled_upraveno.xlsx
+p40;p40;;;x;;;;;Diagnostický marker (ne prediktivní);biomarkery_prehled_upraveno.xlsx
+p53;p53;20;x;x;;;;;IHC vzorec;biomarkery_prehled_upraveno.xlsx
+PALB2;PALB2;21;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+PD-L1 mutace;PD-L1 mutace;22;;x;;;;;Nezamieňať s expresiou PD-L1;biomarkery_prehled_upraveno.xlsx
+PDGFRA;PDGFRA mutace;38;x;;;x;;;;biomarkery_prehled_upraveno.xlsx
+PIK3CA;PIK3CA mutace;23;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+POLE/POLD1;POLE/POLD1;24;x;;;;;;Patogenita variantu;biomarkery_prehled_upraveno.xlsx
+PR;PR;25;;x;;;;;% pozitivních buněk;biomarkery_prehled_upraveno.xlsx
+Ki67;Proliferácia Ki-67;26;;x;;;;;Percento pozitívnych buniek;biomarkery_prehled_upraveno.xlsx
+RET;Prestavba RET;27;;;x;;;;;biomarkery_prehled_upraveno.xlsx
+RELA;RELA fúzia;43;;;x;;;;;biomarkery_prehled_upraveno.xlsx
+ROS1;ROS1;28;;x;x;;;;;biomarkery_prehled_upraveno.xlsx
+STK11;STK11 mutace;;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+TILs;Stromální TILs;;;;;;;;% stromálních TILs (hodnocení v barvení H&E);biomarkery_prehled_upraveno.xlsx
+TP53;TP53 mutace;39;x;;;;;;;biomarkery_prehled_upraveno.xlsx
+TERTp;TERTp mutace;40;x;;;;;;Mutácia promótora;biomarkery_prehled_upraveno.xlsx
+TMB;TMB;;;;;;;;Mutační nálož (mut/Mb), vysoká / nízká;biomarkery_prehled_upraveno.xlsx
+TTF-1;TTF-1;;;x;;;;;Diagnostický marker (ne prediktivní);biomarkery_prehled_upraveno.xlsx
+CCNE1;CCNE1 amplifikace;;;;;x;;;;doplněno z kritérií studií
+MTAP;MTAP ztráta / exprese;;;x;;;x;;;doplněno z kritérií studií
+HPV;HPV;;;;;;;;Virová pozitivita;doplněno z kritérií studií
+TROP2;TROP2;;;x;;;;;;doplněno z kritérií studií

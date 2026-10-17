@@ -85,6 +85,8 @@ class BiomarkerResult:
     values: list[float] = field(default_factory=list)
     method: str | None = None
     conflict: bool = False
+    # Key of biomarkers.RESULT_TYPES (mutace, exprese, fuze, ...); informative only, matching does not use it.
+    result_type: str | None = None
 
 
 @dataclass

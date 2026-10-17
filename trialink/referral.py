@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .catalog import Contact
+from .biomarkers import RESULT_TYPES
 from .dictionaries import format_morpho
 from .matching import STATUS_LABELS, CohortResult
 from .model import EXTENTS, HER2_STATUSES, HISTOLOGIES, SETTINGS, PatientProfile
@@ -34,7 +35,7 @@ def _summary(p: PatientProfile) -> list[str]:
     if p.her2_status:
         lines.append(f"HER2: {HER2_STATUSES[p.her2_status]}")
     for b in p.biomarkers.values():
-        detail = " ".join(x for x in [b.variant or "", ", ".join(f"{v:g}" for v in b.values)] if x)
+        detail = " ".join(x for x in [RESULT_TYPES.get(b.result_type or "", ""), b.variant or "", ", ".join(f"{v:g}" for v in b.values)] if x)
         lines.append(f"{b.marker}: {b.status}{' – ' + detail if detail else ''}{' (ROZPOR)' if b.conflict else ''}")
     if p.therapies:
         lines.append("Předchozí léčba: " + "; ".join(f"{t.name} ({t.setting or 'režim neuveden'})" for t in p.therapies))
