@@ -323,13 +323,25 @@ def biomarker_column_config(bio_dict: BiomarkerDictionary, extra_markers: list[s
     }
 
 
-def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None) -> None:
+def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None,
+                  collapsed: bool = False) -> None:
     s = r.study
     st.markdown(f"**{STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
     st.caption(f"{STATUS_LABELS[r.status]} · {s.indication}" + ("" if r.targeted else " · studie pro více druhů nádorů"))
     note = sex_caution(r, profile) if profile else None
     if note:
         st.warning(note)
+    if collapsed:
+        label = (f"Detail kritérií – splněno {len(r.satisfied)} · k ověření {len(r.open_items)} · "
+                 f"nesplněno {len(r.failed)}")
+        with st.expander(label, expanded=False):
+            _render_criteria(r, lay=lay)
+    else:
+        _render_criteria(r, lay=lay)
+
+
+def _render_criteria(r: CohortResult, *, lay: bool) -> None:
+    s = r.study
     cols = st.columns(3)
     with cols[0]:
         st.markdown("**Splněno**" if not lay else "**Odpovídá**")
@@ -398,9 +410,51 @@ def apply_profile(prefix: str, p: PatientProfile) -> None:
     ss[f"{prefix}_editor_rev"] = ss.get(f"{prefix}_editor_rev", 0) + 1
 
 
+SECTION_COLORS = ("#0b6a8d", "#1f8a70", "#7b4fa8", "#c76a12", "#b03a5b")
+FIELD_BORDER = "#5f7f97"
+
+
+def _form_css(prefix: str) -> str:
+    """Each form section is a white card with its own accent colour; inputs are white with a clearly visible frame."""
+    css = []
+    for n, color in enumerate(SECTION_COLORS, start=1):
+        s = f".st-key-{prefix}_sec{n}"
+        css.append(f"""{s} {{
+  background: #ffffff !important; border: 1px solid {color}33 !important; border-left: 7px solid {color} !important;
+  border-radius: 14px !important; padding: 0.9rem 1.3rem 1.1rem !important; box-shadow: 0 6px 18px rgba(11,62,83,0.08);
+  margin-bottom: 0.6rem;
+}}
+{s} h4 {{color: {color}; padding-top: 0.1rem; border-bottom: 2px solid {color}26; padding-bottom: 0.45rem; margin-bottom: 0.3rem;}}
+{s} [data-testid="stSelectbox"] [role="group"], {s} [data-baseweb="input"], {s} [data-baseweb="textarea"],
+{s} [data-testid="stNumberInputContainer"], {s} [data-testid="stDataFrameResizable"] {{
+  background: #ffffff !important; border: 2px solid {FIELD_BORDER} !important; border-radius: 8px !important;
+}}
+{s} [data-testid="stNumberInputContainer"] [data-baseweb="input"] {{border: none !important;}}
+{s} [data-testid="stSelectbox"] [role="group"]:has(input:disabled) {{border-color: #c3d0da !important; background: #f4f7f9 !important;}}
+{s} input, {s} textarea {{background: #ffffff !important; color: #182338 !important;}}
+{s} [data-testid="stSelectbox"] [role="group"]:hover, {s} [data-baseweb="input"]:hover,
+{s} [data-testid="stNumberInputContainer"]:hover {{
+  border-color: {color} !important;
+}}
+{s} [data-testid="stSelectbox"] [role="group"]:focus-within, {s} [data-baseweb="input"]:focus-within,
+{s} [data-testid="stNumberInputContainer"]:focus-within {{
+  border-color: {color} !important; box-shadow: 0 0 0 3px {color}33 !important;
+}}
+{s} [data-testid="stWidgetLabel"] p {{font-weight: 600; color: #182338;}}
+{s} [data-testid="stRadioOption"] {{
+  background: #ffffff; border: 2px solid {FIELD_BORDER}; border-radius: 999px; padding: 0.3rem 0.9rem 0.3rem 0.55rem;
+  margin: 0.15rem 0.4rem 0.15rem 0;
+}}
+{s} [data-testid="stRadioOption"]:has(input:checked) {{
+  border-color: {color}; background: {color}1a; box-shadow: 0 0 0 1px {color};
+}}""")
+    return "<style>" + "\n".join(css) + "</style>"
+
+
 def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
     """Decision tree: diagnosis -> stage -> treatment line -> biomarkers -> other gates."""
     ss = st.session_state
+    st.markdown(_form_css(prefix), unsafe_allow_html=True)
     tip = (lambda k: TOOLTIPS[k]) if lay else (lambda k: None)
     rev = ss.get(f"{prefix}_editor_rev", 0)
     evidence = ss.get(f"{prefix}_evidence", {})
@@ -409,116 +463,121 @@ def profile_form(prefix: str, *, lay: bool = False) -> PatientProfile:
         if evidence.get(name):
             st.caption(f"Zdroj: „{evidence[name]}“")
 
-    st.markdown("#### 1 · Diagnóza" if not lay else "#### 1 · Jakou máte diagnózu?")
-    index, morpho_source = get_topo_morpho()
-    icd_key, morpho_key, hist_key = f"{prefix}_icd", f"{prefix}_morpho", f"{prefix}_histology"
-    codes = index.diagnosis_codes() if index else sorted(ICD_NAMES)
-    current = normalize_icd(ss.get(icd_key))
-    if current is None:
-        ss.pop(icd_key, None)
-    elif ss.get(icd_key) != current:
-        ss[icd_key] = current
-    if current and current not in codes:
-        codes = sorted({*codes, current})
-    c1, c2 = st.columns(2)
-    diagnosis = c1.selectbox(
-        "Diagnóza (MKN-10)" if not lay else "Kde nádor vznikl (diagnóza)", [None, *codes], key=icd_key,
-        format_func=lambda v: UNKNOWN if v is None else diagnosis_label(v),
-        help=tip("mkn10") or "Začněte psát kód nebo orgán (např. C18 nebo prás) – seznam se vyfiltruje. "
-                                "Tříznakový kód (C18) = lokalizace bez upřesnění.")
+    with st.container(border=True, key=f"{prefix}_sec1"):
+        st.markdown("#### 1 · Diagnóza" if not lay else "#### 1 · Jakou máte diagnózu?")
+        index, morpho_source = get_topo_morpho()
+        icd_key, morpho_key, hist_key = f"{prefix}_icd", f"{prefix}_morpho", f"{prefix}_histology"
+        codes = index.diagnosis_codes() if index else sorted(ICD_NAMES)
+        current = normalize_icd(ss.get(icd_key))
+        if current is None:
+            ss.pop(icd_key, None)
+        elif ss.get(icd_key) != current:
+            ss[icd_key] = current
+        if current and current not in codes:
+            codes = sorted({*codes, current})
+        c1, c2 = st.columns(2)
+        diagnosis = c1.selectbox(
+            "Diagnóza (MKN-10)" if not lay else "Kde nádor vznikl (diagnóza)", [None, *codes], key=icd_key,
+            format_func=lambda v: UNKNOWN if v is None else diagnosis_label(v),
+            help=tip("mkn10") or "Začněte psát kód nebo orgán (např. C18 nebo prás) – seznam se vyfiltruje. "
+                                    "Tříznakový kód (C18) = lokalizace bez upřesnění.")
 
-    allowed = index.morphologies(diagnosis) if index and diagnosis else []
-    if ss.get(morpho_key) and ss[morpho_key] not in allowed:
-        if diagnosis and index:
-            st.warning(f"Morfologie {format_morpho(ss[morpho_key])} není pro diagnózu {diagnosis_label(diagnosis)} v číselníku povolena – vyberte znovu.")
-        ss.pop(morpho_key, None)
-    morpho = c2.selectbox(
-        "Morfologie (ICD-O-3)" if not lay else "Typ nádoru podle zprávy (morfologie)", [None, *allowed], key=morpho_key,
-        format_func=lambda v: UNKNOWN if v is None else format_morpho(v), disabled=not allowed,
-        help=(f"Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu podle číselníku TNM skupin "
-              f"(zdroj: {morpho_source}). Lze vyhledávat kódem i názvem, např. 8140 nebo adenokarcinom." if index
-              else f"Číselník morfologií není dostupný: {morpho_source}."))
-    src("icd10")
-    src("morphology")
+        allowed = index.morphologies(diagnosis) if index and diagnosis else []
+        if ss.get(morpho_key) and ss[morpho_key] not in allowed:
+            if diagnosis and index:
+                st.warning(f"Morfologie {format_morpho(ss[morpho_key])} není pro diagnózu {diagnosis_label(diagnosis)} v číselníku povolena – vyberte znovu.")
+            ss.pop(morpho_key, None)
+        morpho = c2.selectbox(
+            "Morfologie (ICD-O-3)" if not lay else "Typ nádoru podle zprávy (morfologie)", [None, *allowed], key=morpho_key,
+            format_func=lambda v: UNKNOWN if v is None else format_morpho(v), disabled=not allowed,
+            help=(f"Nabízeny jsou jen morfologie povolené pro zvolenou diagnózu podle číselníku TNM skupin "
+                  f"(zdroj: {morpho_source}). Lze vyhledávat kódem i názvem, např. 8140 nebo adenokarcinom." if index
+                  else f"Číselník morfologií není dostupný: {morpho_source}."))
+        src("icd10")
+        src("morphology")
 
-    derived = histology_from_morpho(morpho)
-    if derived:
-        histology = derived
-        groups = index.group_names(diagnosis, morpho) if index else []
-        st.caption(f"Histologický typ pro párování se studiemi: **{HISTOLOGIES[derived]}** (odvozeno z morfologie)"
-                   + (f" · skupina TNM: {', '.join(groups)}" if groups else ""))
-    else:
-        histology = st.selectbox(
-            "Histologický typ" + (" (nelze odvodit z morfologie)" if morpho else " (pokud neznáte morfologii)"),
-            _opt(HISTOLOGIES), format_func=_fmt(HISTOLOGIES), key=hist_key,
-            help=tip("histologie") or "Kritéria studií jsou formulována histologickým typem (např. adenokarcinom, skvamózní). "
-                                      "Když zvolíte morfologii, typ se doplní automaticky.")
-    if index and diagnosis and not allowed:
-        st.caption(f"Kód {diagnosis_label(diagnosis)} není v číselníku TNM skupin – morfologii nelze vybrat.")
-    elif not index:
-        st.caption(f"⚠️ Číselník morfologií není dostupný: {morpho_source}.")
-    src("histology")
+        derived = histology_from_morpho(morpho)
+        if derived:
+            histology = derived
+            groups = index.group_names(diagnosis, morpho) if index else []
+            st.caption(f"Histologický typ pro párování se studiemi: **{HISTOLOGIES[derived]}** (odvozeno z morfologie)"
+                       + (f" · skupina TNM: {', '.join(groups)}" if groups else ""))
+        else:
+            histology = st.selectbox(
+                "Histologický typ" + (" (nelze odvodit z morfologie)" if morpho else " (pokud neznáte morfologii)"),
+                _opt(HISTOLOGIES), format_func=_fmt(HISTOLOGIES), key=hist_key,
+                help=tip("histologie") or "Kritéria studií jsou formulována histologickým typem (např. adenokarcinom, skvamózní). "
+                                          "Když zvolíte morfologii, typ se doplní automaticky.")
+        if index and diagnosis and not allowed:
+            st.caption(f"Kód {diagnosis_label(diagnosis)} není v číselníku TNM skupin – morfologii nelze vybrat.")
+        elif not index:
+            st.caption(f"⚠️ Číselník morfologií není dostupný: {morpho_source}.")
+        src("histology")
 
-    st.markdown("#### 2 · Rozsah onemocnění" if not lay else "#### 2 · Jak je nemoc rozsáhlá?")
-    extent = st.radio("Rozsah", _opt(EXTENTS), format_func=_fmt(EXTENTS), key=f"{prefix}_extent", horizontal=True,
-                      help=tip("rozsah"), label_visibility="collapsed")
-    src("disease_extent")
+    with st.container(border=True, key=f"{prefix}_sec2"):
+        st.markdown("#### 2 · Rozsah onemocnění" if not lay else "#### 2 · Jak je nemoc rozsáhlá?")
+        extent = st.radio("Rozsah", _opt(EXTENTS), format_func=_fmt(EXTENTS), key=f"{prefix}_extent", horizontal=True,
+                          help=tip("rozsah"), label_visibility="collapsed")
+        src("disease_extent")
 
-    st.markdown("#### 3 · Léčebná situace a předchozí léčba" if not lay else "#### 3 · Vaše léčba")
-    setting = ss.get(f"{prefix}_setting")
-    lines = st.selectbox(
-        "Počet již podaných linií léčby pokročilého onemocnění" if not lay
-        else "Kolikrát už jste dostal(a) léčbu kvůli pokročilé (metastatické) nemoci?",
-        [None, *range(0, 11)], key=f"{prefix}_lines", help=tip("linie"),
-        format_func=lambda v: UNKNOWN if v is None else ("žádnou" if v == 0 else (f"{v}×" if lay else f"{v}. linie")))
-    st.write("")
-    therapy_modes = {"none": "Zatím žádná léčba" if lay else "Žádná předchozí léčba", "list": "Vypsat léky / režimy"}
-    therapy_mode = st.radio(
-        "Jakou léčbu už jste podstoupil(a)?" if lay else "Předchozí systémová léčba", _opt(therapy_modes),
-        format_func=_fmt(therapy_modes), key=f"{prefix}_ther_mode", horizontal=True,
-        help="Některé studie vyžadují nebo naopak vylučují určitou předchozí léčbu (např. FOLFOX, Kadcyla).")
-    therapies = None if therapy_mode is None else []
-    if therapy_mode == "list":
-        rows = st.data_editor(ss.get(f"{prefix}_ther_init", []) or [{"lék / režim": "", "režim": None}], num_rows="dynamic",
-                              key=f"{prefix}_ther_{rev}", width="stretch", column_config={
-                                  "lék / režim": st.column_config.TextColumn("Lék / režim", help="Např. FOLFOX + nivolumab, Kadcyla, Enhertu"),
-                                  "režim": st.column_config.SelectboxColumn("Kdy", options=list(SETTINGS))})
-        therapies = rows_to_therapies(rows)
+    with st.container(border=True, key=f"{prefix}_sec3"):
+        st.markdown("#### 3 · Léčebná situace a předchozí léčba" if not lay else "#### 3 · Vaše léčba")
+        setting = ss.get(f"{prefix}_setting")
+        lines = st.selectbox(
+            "Počet již podaných linií léčby pokročilého onemocnění" if not lay
+            else "Kolikrát už jste dostal(a) léčbu kvůli pokročilé (metastatické) nemoci?",
+            [None, *range(0, 11)], key=f"{prefix}_lines", help=tip("linie"),
+            format_func=lambda v: UNKNOWN if v is None else ("žádnou" if v == 0 else (f"{v}×" if lay else f"{v}. linie")))
+        st.write("")
+        therapy_modes = {"none": "Zatím žádná léčba" if lay else "Žádná předchozí léčba", "list": "Vypsat léky / režimy"}
+        therapy_mode = st.radio(
+            "Jakou léčbu už jste podstoupil(a)?" if lay else "Předchozí systémová léčba", _opt(therapy_modes),
+            format_func=_fmt(therapy_modes), key=f"{prefix}_ther_mode", horizontal=True,
+            help="Některé studie vyžadují nebo naopak vylučují určitou předchozí léčbu (např. FOLFOX, Kadcyla).")
+        therapies = None if therapy_mode is None else []
+        if therapy_mode == "list":
+            rows = st.data_editor(ss.get(f"{prefix}_ther_init", []) or [{"lék / režim": "", "režim": None}], num_rows="dynamic",
+                                  key=f"{prefix}_ther_{rev}", width="stretch", column_config={
+                                      "lék / režim": st.column_config.TextColumn("Lék / režim", help="Např. FOLFOX + nivolumab, Kadcyla, Enhertu"),
+                                      "režim": st.column_config.SelectboxColumn("Kdy", options=list(SETTINGS))})
+            therapies = rows_to_therapies(rows)
 
-    st.markdown("#### 4 · Biomarkery" if not lay else "#### 4 · Výsledky vyšetření nádoru (biomarkery)")
-    if lay:
-        st.caption(" · ".join(f"**{k}**: {TOOLTIPS[k]}" for k in ("KRAS", "HER2", "PD-L1")))
-    her2 = None
-    if her2_relevant(diagnosis) or ss.get(f"{prefix}_her2"):
-        her2 = st.selectbox("HER2", _opt(HER2_STATUSES), format_func=_fmt(HER2_STATUSES), key=f"{prefix}_her2", help=tip("HER2"))
-    bio_dict, bio_source = get_biomarker_dictionary()
-    bio_init = ss.get(f"{prefix}_bio_init", []) or [{"marker": None, "status": "pozitivni", "typ": None, "varianta": "", "hodnoty": "", "rozpor": False}]
-    bio_rows = st.data_editor(bio_init, num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch",
-                              column_config=biomarker_column_config(bio_dict, [r.get("marker") for r in bio_init]))
-    biomarkers = rows_to_biomarkers(bio_rows, bio_dict)
-    bio_issues = bio_dict.check_all(biomarkers.values())
-    if bio_issues:
-        st.warning(("**Zkontrolujte prosím zadané biomarkery:**\n" if lay else "**Neobvyklá kombinace podle číselníku biomarkerů** "
-                    "(údaj se přesto použije):\n") + "\n".join(f"- {i}" for i in bio_issues))
-    if not lay:
-        with st.expander("Povolené kombinace biomarker × typ nálezu"):
-            st.dataframe([{"Biomarker": bio_dict.label(c), "Povolené typy nálezu": bio_dict.describe(c)} for c in bio_dict.codes],
-                         hide_index=True, width="stretch")
-            st.caption(f"Zdroj číselníku: {bio_source}")
+    with st.container(border=True, key=f"{prefix}_sec4"):
+        st.markdown("#### 4 · Biomarkery" if not lay else "#### 4 · Výsledky vyšetření nádoru (biomarkery)")
+        if lay:
+            st.caption(" · ".join(f"**{k}**: {TOOLTIPS[k]}" for k in ("KRAS", "HER2", "PD-L1")))
+        her2 = None
+        if her2_relevant(diagnosis) or ss.get(f"{prefix}_her2"):
+            her2 = st.selectbox("HER2", _opt(HER2_STATUSES), format_func=_fmt(HER2_STATUSES), key=f"{prefix}_her2", help=tip("HER2"))
+        bio_dict, bio_source = get_biomarker_dictionary()
+        bio_init = ss.get(f"{prefix}_bio_init", []) or [{"marker": None, "status": "pozitivni", "typ": None, "varianta": "", "hodnoty": "", "rozpor": False}]
+        bio_rows = st.data_editor(bio_init, num_rows="dynamic", key=f"{prefix}_bio_{rev}", width="stretch",
+                                  column_config=biomarker_column_config(bio_dict, [r.get("marker") for r in bio_init]))
+        biomarkers = rows_to_biomarkers(bio_rows, bio_dict)
+        bio_issues = bio_dict.check_all(biomarkers.values())
+        if bio_issues:
+            st.warning(("**Zkontrolujte prosím zadané biomarkery:**\n" if lay else "**Neobvyklá kombinace podle číselníku biomarkerů** "
+                        "(údaj se přesto použije):\n") + "\n".join(f"- {i}" for i in bio_issues))
+        if not lay:
+            with st.expander("Povolené kombinace biomarker × typ nálezu"):
+                st.dataframe([{"Biomarker": bio_dict.label(c), "Povolené typy nálezu": bio_dict.describe(c)} for c in bio_dict.codes],
+                             hide_index=True, width="stretch")
+                st.caption(f"Zdroj číselníku: {bio_source}")
 
-    st.markdown("#### 5 · Další kritéria" if not lay else "#### 5 · Celkový stav")
-    implied_sex = sex_for_diagnosis(diagnosis)
-    if implied_sex and f"{prefix}_sex" not in ss:
-        ss[f"{prefix}_sex"] = implied_sex
-    c1, c2, c3, c4 = st.columns(4)
-    ecog = c1.selectbox("ECOG", [None, 0, 1, 2, 3, 4], format_func=lambda v: UNKNOWN if v is None else str(v), key=f"{prefix}_ecog", help=tip("ECOG"))
-    age = c2.number_input("Věk", 0, 120, key=f"{prefix}_age", **({} if f"{prefix}_age" in ss else {"value": None}))
-    sex = c3.selectbox("Pohlaví", [None, "F", "M"], format_func=lambda v: {None: UNKNOWN, "F": "žena", "M": "muž"}[v], key=f"{prefix}_sex")
-    swallow = c4.selectbox("Může polykat tablety?", [None, "ano", "ne"], format_func=lambda v: UNKNOWN if v is None else v,
-                           key=f"{prefix}_swallow", help=tip("polykani"))
-    if implied_sex and sex and sex != implied_sex:
-        st.warning(f"Diagnóza {diagnosis_label(diagnosis)} se týká pouze pohlaví „{SEX_LABELS[implied_sex]}“ – "
-                   "zkontrolujte prosím diagnózu nebo pohlaví.")
+    with st.container(border=True, key=f"{prefix}_sec5"):
+        st.markdown("#### 5 · Další kritéria" if not lay else "#### 5 · Celkový stav")
+        implied_sex = sex_for_diagnosis(diagnosis)
+        if implied_sex and f"{prefix}_sex" not in ss:
+            ss[f"{prefix}_sex"] = implied_sex
+        c1, c2, c3, c4 = st.columns(4)
+        ecog = c1.selectbox("ECOG", [None, 0, 1, 2, 3, 4], format_func=lambda v: UNKNOWN if v is None else str(v), key=f"{prefix}_ecog", help=tip("ECOG"))
+        age = c2.number_input("Věk", 0, 120, key=f"{prefix}_age", **({} if f"{prefix}_age" in ss else {"value": None}))
+        sex = c3.selectbox("Pohlaví", [None, "F", "M"], format_func=lambda v: {None: UNKNOWN, "F": "žena", "M": "muž"}[v], key=f"{prefix}_sex")
+        swallow = c4.selectbox("Může polykat tablety?", [None, "ano", "ne"], format_func=lambda v: UNKNOWN if v is None else v,
+                               key=f"{prefix}_swallow", help=tip("polykani"))
+        if implied_sex and sex and sex != implied_sex:
+            st.warning(f"Diagnóza {diagnosis_label(diagnosis)} se týká pouze pohlaví „{SEX_LABELS[implied_sex]}“ – "
+                       "zkontrolujte prosím diagnózu nebo pohlaví.")
 
     p = PatientProfile(
         icd10=diagnosis, morphology=morpho, histology=histology, disease_extent=extent, setting=setting,
