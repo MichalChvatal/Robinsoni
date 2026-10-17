@@ -25,11 +25,9 @@ def _go_home() -> None:
 
 if brand_header("adm_nav_logo"):
     _go_home()
-c_back, c_home, _ = st.columns([1, 1, 4])
+c_back, _ = st.columns([1, 5])
 if c_back.button("← Zpět", key="adm_nav_back", width="stretch"):
     st.switch_page("Home.py")
-if c_home.button("🏠 Domů", key="adm_nav_home", width="stretch"):
-    _go_home()
 st.title("🗂️ Správa (pro administrátory)")
 
 

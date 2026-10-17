@@ -90,7 +90,7 @@ def test_admin_page_disabled_without_hash(monkeypatch):
 def test_admin_page_requires_password(monkeypatch):
     at = _admin_app(monkeypatch, hash_password("spravne-heslo-123", iterations=1000))
     assert not at.tabs
-    assert {"adm_nav_back", "adm_nav_home"} <= {b.key for b in at.button}
+    assert {"adm_nav_back", "adm_nav_logo"} <= {b.key for b in at.button}
 
     def login():
         return next(b for b in at.button if b.label == "Přihlásit")
