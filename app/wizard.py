@@ -24,10 +24,20 @@ from trialink.referral import build_referral, simulate_send
 ss = st.session_state
 DOCTOR, PATIENT = "lekar", "pacient"
 OTHER_STUDIES = "Studie pro více druhů nádorů"
-STEP_TITLES = {
-    "role": "Kdo jste?", "doc_choice": "Jak zadáte údaje?", "report": "Lékařská zpráva",
+STEP_TITLES_DOC = {
+    "role": "Kdo jste?", "doc_choice": "Způsob zadání údajů", "report": "Lékařská zpráva",
+    "review": "Kontrola a anonymizace", "detail": "Parametry pacienta", "results": "Výsledky párování",
+}
+STEP_TITLES_PAT = {
+    "role": "Kdo jste?", "report": "Lékařská zpráva",
     "review": "Kontrola a anonymizace", "detail": "Údaje o nemoci", "results": "Nalezené studie",
 }
+STEP_TITLES = STEP_TITLES_DOC
+
+
+def _step_title(step: str) -> str:
+    titles = STEP_TITLES_DOC if ss.get("wiz_role") == DOCTOR else STEP_TITLES_PAT
+    return titles.get(step, "")
 
 
 # --- navigation --------------------------------------------------------------------------------------------------
@@ -65,7 +75,7 @@ def _nav() -> None:
     c1, c2, c3 = st.columns([1, 3, 1])
     c1.button("← Zpět", on_click=_back, key="wiz_back", width="stretch")
     who = "👩‍⚕️ Lékař" if ss.get("wiz_role") == DOCTOR else "🙂 Pacient"
-    c2.markdown(f"<div style='text-align:center'>{who} · <b>{STEP_TITLES[step]}</b></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div style='text-align:center'>{who} · <b>{_step_title(step)}</b></div>", unsafe_allow_html=True)
     c3.button("↺ Začít znovu", on_click=_restart, key="wiz_restart", width="stretch")
     st.divider()
 
@@ -124,13 +134,13 @@ def step_role() -> None:
 
 
 def step_doc_choice() -> None:
-    st.markdown("### Jak chcete zadat údaje pacienta?")
+    st.markdown("### Vyberte způsob zadání údajů pacienta")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     _card(c1, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
           "Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.", _go, ("report",))
     _card(c2, "wiz_choice_form", "📝 Vyplnit formulář",
-          "Rozhodovací strom: diagnóza → rozsah → léčba → biomarkery.", _go, ("detail",))
+          "Krokový formulář: diagnóza → rozsah onemocnění → předchozí léčba → biomarkery.", _go, ("detail",))
 
 
 def _load_report(prefix: str) -> None:
@@ -254,9 +264,10 @@ def step_review() -> None:
     ready = ok and bool(text.strip())
     st.markdown(SEARCH_CSS, unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    if c1.button("🔍 Zobrazit detail", disabled=not ready, key="wiz_to_detail", width="stretch"):
+    label_detail = "📝 Zkontrolovat vyčtené údaje →" if lay else "📝 Zkontrolovat parametry →"
+    if c1.button(label_detail, disabled=not ready, key="wiz_to_detail", width="stretch"):
         _extract(p, "detail")
-    if c2.button("🧬 Vyhledat klinickou studii", disabled=not ready, type="primary", key="wiz_to_results", width="stretch"):
+    if c2.button("🧬 Rovnou vyhledat studie", disabled=not ready, type="primary", key="wiz_to_results", width="stretch"):
         _extract(p, "results")
     if not lay:
         st.caption("Vyhodnocení textu provádí jazykový model; údaje bez doslovné citace ze zprávy se zahodí.")
@@ -275,7 +286,7 @@ def step_detail() -> None:
     profile = profile_form(p, lay=lay)
     st.divider()
     st.markdown(SEARCH_CSS, unsafe_allow_html=True)
-    if st.button("🧬 Vyhledat klinickou studii", type="primary", key="wiz_search"):
+    if st.button("🧬 Vyhledat klinické studie", type="primary", key="wiz_search"):
         ss[f"{p}_profile"] = profile
         _go("results")
         st.rerun()
