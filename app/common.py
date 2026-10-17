@@ -293,9 +293,19 @@ def biomarker_column_config():
     }
 
 
-def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None) -> None:
+def result_title(r: CohortResult) -> str:
+    return f"{STATUS_ICONS[r.status]} {r.study.acronym} · {r.study.study_id} · {r.cohort['label']}"
+
+
+def result_summary(r: CohortResult) -> str:
+    return f"splněno {len(r.satisfied)} · k ověření {len(r.open_items)} · nesplněno {len(r.failed)}"
+
+
+def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None,
+                  title: bool = True) -> None:
     s = r.study
-    st.markdown(f"**{STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
+    if title:
+        st.markdown(f"**{STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
     st.caption(f"{STATUS_LABELS[r.status]} · {s.indication}" + ("" if r.targeted else " · studie pro více druhů nádorů"))
     note = sex_caution(r, profile) if profile else None
     if note:

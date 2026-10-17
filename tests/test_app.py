@@ -61,7 +61,7 @@ def test_doctor_flow_case2_to_simulated_referral():
     assert at.session_state["wiz_step"] == "detail"
     _click(at, "wiz_search")
     assert at.session_state["wiz_step"] == "results"
-    text = " ".join(m.value for m in at.markdown)
+    text = " ".join([m.value for m in at.markdown] + [e.label for e in at.expander])
     assert "MSD - jícen" in text
     _click(at, "doc_ref_2025/R46")
     body = at.text_area(key="doc_ref_body_2025/R46")
