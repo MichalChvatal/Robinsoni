@@ -82,6 +82,14 @@ def test_upload_is_default_and_camera_only_on_demand(services):
     assert at.get("camera_input")
 
 
+def test_doctor_report_offers_text_first(services):
+    at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
+    at.button(key="wiz_role_doc").click().run()
+    at.button(key="wiz_choice_report").click().run()
+    assert list(at.radio(key="doc_mode").options) == ["✍️ Vložit text", "📁 Nahrát soubor", "📷 Vyfotit zprávu"]
+    assert at.radio(key="doc_mode").value == "text"
+
+
 def test_missing_facts_default_to_unknown(services):
     at = _patient_review("Adenokarcinom C18.6, ECOG 1.")
     at.checkbox(key="pat_report_ok").check().run()
