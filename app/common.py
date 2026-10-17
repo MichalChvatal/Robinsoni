@@ -1,7 +1,6 @@
 """Shared Streamlit helpers. Patient data lives only in st.session_state (server RAM) and is cleared on reset."""
 from __future__ import annotations
 
-import base64
 import os
 import sys
 import time
@@ -115,18 +114,16 @@ LOGO = Path(__file__).resolve().parent / "static" / "mou_logo.svg"
 
 
 def brand_header(key: str, on_home=None) -> bool:
-    """MOÚ logo + clickable TriaLink title. Returns True when the title was clicked."""
+    """MOÚ logo in the sticky top bar + clickable TriaLink title. Returns True when the title was clicked."""
     st.markdown(f"""<style>
+.st-key-{key} {{position: fixed; top: 0.55rem; left: 7.6rem; z-index: 1000001; width: auto !important;}}
 .st-key-{key} button {{padding: 0; min-height: 0;}}
-.st-key-{key} button p {{font-size: 2.6rem; font-weight: 700; line-height: 1.2;}}
+.st-key-{key} button p {{font-size: 1.9rem; font-weight: 700; line-height: 1.2;}}
+[data-testid="stHeaderLogo"], [data-testid="stLogo"] {{height: 2.6rem; background: #fff; padding: 4px 8px; border-radius: 6px;}}
 </style>""", unsafe_allow_html=True)
-    c_logo, c_title = st.columns([1, 5], vertical_alignment="center")
     if LOGO.is_file():
-        logo = base64.b64encode(LOGO.read_bytes()).decode()
-        c_logo.html(f'<a href="https://www.mou.cz" target="_blank" rel="noopener"><img src="data:image/svg+xml;base64,{logo}" '
-                    'alt="Masarykův onkologický ústav" style="height:64px;width:auto;background:#fff;'
-                    'padding:6px 10px;border-radius:8px"></a>')
-    return c_title.button("TriaLink", key=key, type="tertiary", on_click=on_home, help="Zpět na úvod")
+        st.logo(str(LOGO), size="large", link="https://www.mou.cz")
+    return st.button("TriaLink", key=key, type="tertiary", on_click=on_home, help="Zpět na úvod")
 
 
 def biomarker_rows(p: PatientProfile) -> list[dict]:
