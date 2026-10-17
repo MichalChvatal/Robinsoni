@@ -18,7 +18,7 @@ class OcrError(ValueError):
     """A safe, user-facing error without image contents or OCR output."""
 
 
-def image_to_text(data: bytes) -> str:
+def image_to_text(data: bytes, *, timeout: float = 60) -> str:
     if not data or len(data) > MAX_IMAGE_BYTES:
         raise OcrError("Nahrajte fotografii JPG nebo PNG o velikosti nejvýše 10 MB.")
     try:
@@ -47,7 +47,7 @@ def image_to_text(data: bytes) -> str:
             command.extend(["--tessdata-dir", str(BUNDLED_TESSDATA)])
         result = subprocess.run(
             command,
-            input=png, capture_output=True, timeout=60, check=False,
+            input=png, capture_output=True, timeout=timeout, check=False,
         )
     except FileNotFoundError:
         raise OcrError("Lokální OCR není dostupné. Nainstalujte Tesseract s českým jazykem ces "

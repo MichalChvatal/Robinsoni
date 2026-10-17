@@ -185,7 +185,7 @@ def step_report() -> None:
     modes = {"file": "📁 Nahrát soubor", "text": "✍️ Vložit text", "photo": "📷 Vyfotit zprávu"}
     mode = st.radio("Jak chcete zprávu vložit?", list(modes), format_func=modes.get, key=f"{p}_mode", horizontal=True)
     if mode == "file":
-        st.file_uploader("Textový soubor (.txt) nebo fotografie / scan (JPG, PNG), max. 10 MB",
+        st.file_uploader("Textový soubor (.txt), PDF nebo fotografie / scan (JPG, PNG), max. 10 MB",
                          type=report_input.UPLOAD_TYPES, key=f"{p}_upload_{nonce}")
     elif mode == "text":
         st.text_area("Text zprávy", key=f"{p}_draft", height=220, max_chars=MAX_REPORT_CHARS,
