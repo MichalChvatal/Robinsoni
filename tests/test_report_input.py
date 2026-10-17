@@ -96,7 +96,7 @@ def test_her2_only_for_related_diagnoses(services):
     at.button(key="wiz_role_pat").click().run()
     at.button(key="wiz_no_report").click().run()
     her2 = lambda: [s for s in at.selectbox if s.key == "pat_her2"]  # noqa: E731
-    assert her2()  # diagnosis unknown -> visible
+    assert not her2()  # diagnosis unknown -> hidden
     at.selectbox(key="pat_icd").set_value("C61").run()
     assert not her2()
     at.selectbox(key="pat_icd").set_value("C50").run()

@@ -213,8 +213,7 @@ HER2_SITES = ("C50", "C15", "C16", "C18", "C19", "C20", "C54")
 
 
 def her2_relevant(diagnosis: str | None) -> bool:
-    """Unknown diagnosis keeps the field visible."""
-    return not diagnosis or diagnosis.startswith(HER2_SITES)
+    return bool(diagnosis) and diagnosis.startswith(HER2_SITES)
 
 
 def _opt(options: dict) -> list:
