@@ -1,16 +1,22 @@
 """Step-by-step guide: role -> (doctor: input choice) -> report -> review -> detail -> results.
 
+Doctors can also pick "quick" (rychlé zadání): a compact one-row form from `quick_entry` that asks only for the
+next needed parameter; it can switch to the full detail form and back, and "Upravit údaje" in results returns
+to the step the search was started from (`wiz_edit_step`).
+
 All state lives in st.session_state only: wiz_* = navigation, doc_* / pat_* = patient data per role.
 """
 from __future__ import annotations
 
 import os
+import re
 import time
 from datetime import date
 
 import streamlit as st
 import streamlit.components.v1 as components
 
+import quick_entry
 import report_input
 from common import apply_profile, disclaimer, profile_form, render_result, reset
 from trialink import anonymize, extraction
@@ -26,7 +32,8 @@ DOCTOR, PATIENT = "lekar", "pacient"
 OTHER_STUDIES = "Studie pro více druhů nádorů"
 STEP_TITLES_DOC = {
     "role": "Kdo jste?", "doc_choice": "Způsob zadání údajů", "report": "Lékařská zpráva",
-    "review": "Kontrola a anonymizace", "detail": "Parametry pacienta", "results": "Výsledky párování",
+    "review": "Kontrola a anonymizace", "detail": "Parametry pacienta", "quick": "Rychlé zadání",
+    "results": "Výsledky párování",
 }
 STEP_TITLES_PAT = {
     "role": "Kdo jste?", "report": "Lékařská zpráva",
@@ -82,7 +89,7 @@ def _nav() -> None:
 
 # --- steps -------------------------------------------------------------------------------------------------------
 
-CARD_KEYS = ("wiz_role_doc", "wiz_role_pat", "wiz_choice_report", "wiz_choice_form")
+CARD_KEYS = ("wiz_role_doc", "wiz_role_pat", "wiz_choice_report", "wiz_choice_form", "wiz_choice_quick")
 CARD_CSS = "<style>" + ", ".join(f".st-key-{k} button" for k in CARD_KEYS) + """{
   min-height: 170px; padding: 1.4rem 1.6rem; border-radius: 1.1rem; justify-content: flex-start; align-items: flex-start;
   text-align: left; background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(236,246,251,0.9));
@@ -137,13 +144,20 @@ def step_role() -> None:
                "tlačítkem „Začít znovu“ nebo po 15 minutách nečinnosti.")
 
 
+def _go_quick() -> None:
+    quick_entry.load_profile("doc", ss.get("doc_profile"))
+    _go("quick")
+
+
 def step_doc_choice() -> None:
     st.markdown("### Vyberte způsob zadání údajů pacienta")
     st.markdown(CARD_CSS, unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    _card(c1, "wiz_choice_form", "📝 Vyplnit formulář",
+    c1, c2, c3 = st.columns(3)
+    _card(c1, "wiz_choice_quick", "⚡ Rychlé zadání",
+          "Jeden řádek bez scrollování: aplikace se ptá vždy jen na další potřebný parametr.", _go_quick, ())
+    _card(c2, "wiz_choice_form", "📝 Vyplnit formulář",
           "Krokový formulář: diagnóza → rozsah onemocnění → předchozí léčba → biomarkery.", _go, ("detail",))
-    _card(c2, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
+    _card(c3, "wiz_choice_report", "📄 Vložit lékařskou zprávu",
           "Text, soubor nebo fotografie. Parametry se z anonymizované zprávy předvyplní automaticky.", _go, ("report",))
 
 
@@ -186,6 +200,7 @@ def _load_demo(prefix: str) -> None:
     profile = CASES[name]()
     apply_profile(prefix, profile)
     ss[f"{prefix}_profile"] = profile
+    ss[f"{prefix}_prefilled"] = True
     _go("detail")
 
 
@@ -244,7 +259,9 @@ def _extract(p: str, then: str) -> None:
         ss["doc_t0"] = t0
     apply_profile(p, result.profile)
     ss[f"{p}_profile"] = result.profile
+    ss[f"{p}_prefilled"] = True
     ss[f"{p}_dropped"] = result.dropped
+    ss["wiz_edit_step"] = "detail"
     _go(then)
     st.rerun()
 
@@ -282,52 +299,110 @@ def step_review() -> None:
 def step_detail() -> None:
     p, lay = _prefix(), _lay()
     stored = ss.get(f"{p}_profile")
-    if stored is not None and f"{p}_extent" not in ss:
-        apply_profile(p, stored)  # widget state is dropped while other steps are shown
+    # Widget state is dropped while other steps are shown; the doctor's profile may also have been changed in quick
+    # entry. Re-apply only on a real difference – apply_profile resets the data editors.
+    if stored is not None and (f"{p}_extent" not in ss or (not lay and stored != ss.get(f"{p}_form_profile"))):
+        apply_profile(p, stored)
     st.markdown("### " + ("Údaje o vaší nemoci" if lay else "Parametry pacienta"))
     if ss.get(f"{p}_dropped"):
         st.info("Vynecháno (údaj nebyl doložen citací ze zprávy): " + ", ".join(ss[f"{p}_dropped"]))
-    if stored is not None:
+    if stored is not None and (lay or ss.get(f"{p}_prefilled")):
         st.caption("Formulář je předvyplněný ze zprávy – zkontrolujte jej, automatické vyplnění může obsahovat chyby.")
     profile = profile_form(p, lay=lay)
+    if not lay:  # single source of truth shared with quick entry (RAM only)
+        ss[f"{p}_profile"] = ss[f"{p}_form_profile"] = profile
     st.divider()
     st.markdown(SEARCH_CSS, unsafe_allow_html=True)
-    if st.button("🧬 Vyhledat klinické studie", type="primary", key="wiz_search"):
+    if lay:
+        search = st.button("🧬 Vyhledat klinické studie", type="primary", key="wiz_search")
+    else:
+        c1, c2 = st.columns([3, 1], vertical_alignment="center")
+        search = c1.button("🧬 Vyhledat klinické studie", type="primary", key="wiz_search")
+        if c2.button("⚡ Přepnout na rychlé zadání", key="wiz_to_quick", width="stretch"):
+            _go("quick")
+            st.rerun()
+    if search:
         ss[f"{p}_profile"] = profile
+        ss["wiz_edit_step"] = "detail"
         _go("results")
         st.rerun()
 
 
+def step_quick() -> None:
+    """Doctor-only compact entry: one row whose active parameter changes as the profile is filled in."""
+    if ss.get("wiz_role") != DOCTOR:
+        step_detail()
+        return
+    quick_entry.sync_profile("doc", ss.get("doc_profile"))
+    profile = quick_entry.quick_form("doc")
+    ss["doc_profile"] = profile
+    st.markdown(SEARCH_CSS, unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 3], vertical_alignment="center")
+    if c1.button("📝 Plný formulář", key="wiz_quick_full", width="stretch"):
+        _go("detail")
+        st.rerun()
+    if c2.button("🧬 Vyhledat klinické studie", type="primary", key="wiz_search", width="stretch"):
+        ss["wiz_edit_step"] = "quick"
+        _go("results")
+        st.rerun()
+
+
+# Doctor result groups: (key, icon, label, colour) – one coloured list, excluded studies are not shown.
+DOC_GROUPS = (("cand", "🟢", "Odpovídá", "#1f8a70"), ("verify", "🟡", "K ověření", "#d4a017"),
+              ("other", "🟠", OTHER_STUDIES, "#e07b16"))
+
+
+def _doc_results_css() -> None:
+    rules = "".join(
+        f'[class*="st-key-doc_res_{g}_"] {{ border-left: 7px solid {c} !important; background: {c}12 !important; '
+        f'border-radius: .6rem !important; padding: .45rem .8rem !important; gap: .3rem !important; }}'
+        for g, _, _, c in DOC_GROUPS)
+    st.markdown(f"<style>{rules} .st-key-doc_reslist {{ gap: .5rem !important; }}</style>", unsafe_allow_html=True)
+
+
+def _safe_key(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "_", text)
+
+
+def _select_referral(study_id: str) -> None:
+    ss["doc_referral"] = study_id
+
+
+def _close_referral() -> None:
+    ss.pop("doc_referral", None)
+
+
 def _doctor_results(studies, profile) -> list:
-    p = "doc"
     results = match(studies, profile)
     groups = {s: [r for r in results if r.status == s] for s in (STATUS_CANDIDATE, STATUS_VERIFY, STATUS_EXCLUDED)}
-    targeted_verify = [r for r in groups[STATUS_VERIFY] if r.targeted]
-    other_verify = [r for r in groups[STATUS_VERIFY] if not r.targeted]
-    sections = [("Kandidáti", groups[STATUS_CANDIDATE]), ("K ověření", targeted_verify),
-                (OTHER_STUDIES, other_verify), ("Vyloučené", groups[STATUS_EXCLUDED])]
-    tabs = st.tabs([f"🟢 Kandidáti ({len(groups[STATUS_CANDIDATE])})", f"🟡 K ověření ({len(targeted_verify)})",
-                    f"🟡 {OTHER_STUDIES} ({len(other_verify)})", f"🔴 Vyloučené ({len(groups[STATUS_EXCLUDED])})"])
+    items = {"cand": groups[STATUS_CANDIDATE],
+             "verify": [r for r in groups[STATUS_VERIFY] if r.targeted],
+             "other": [r for r in groups[STATUS_VERIFY] if not r.targeted]}
+    sections = [(label, items[g]) for g, _, label, _ in DOC_GROUPS]
+    _doc_results_css()
+    if any(items.values()):
+        st.markdown(" · ".join(f"{icon} {label} **{len(items[g])}**" for g, icon, label, _ in DOC_GROUPS))
+    else:
+        st.info("Žádná vhodná ani k ověření vhodná studie pro zadané údaje.")
+    i = 0
+    with st.container(key="doc_reslist"):
+        for g, icon, label, _ in DOC_GROUPS:
+            for r in items[g]:
+                sid = r.study.study_id
+                with st.container(border=True, key=f"doc_res_{g}_{_safe_key(sid)}_{i}"):
+                    render_result(r, profile=profile, collapsed=True, icon=icon, group_label=label)
+                    st.button("✉️ Připravit referral", key=f"doc_ref_{sid}", on_click=_select_referral, args=(sid,))
+                    if ss.get("doc_referral") == sid:
+                        _referral_section(r, profile)
+                i += 1
+    st.caption(f"Vyloučené studie ({len(groups[STATUS_EXCLUDED])}) nejsou zobrazeny.")
+    return sections
 
-    def result_list(items, allow_referral: bool):
-        if not items:
-            st.info("Žádná studie v této skupině.")
-        for r in items:
-            with st.container(border=True):
-                render_result(r, profile=profile, collapsed=True)
-                if allow_referral and st.button("✉️ Připravit referral", key=f"{p}_ref_{r.study.study_id}"):
-                    ss[f"{p}_referral"] = r.study.study_id
 
-    for tab, items, allow in zip(tabs, (groups[STATUS_CANDIDATE], targeted_verify, other_verify, groups[STATUS_EXCLUDED]),
-                                 (True, True, True, False)):
-        with tab:
-            result_list(items, allow)
-
-    selected = next((r for r in results if r.study.study_id == ss.get(f"{p}_referral")), None)
-    if not selected:
-        return sections
-    st.divider()
-    st.markdown(f"### ✉️ Referral – {selected.study.acronym}")
+def _referral_section(selected, profile) -> None:
+    p = "doc"
+    st.markdown(f"#### ✉️ Referral – {selected.study.acronym}")
+    st.button("✕ Zavřít", key=f"{p}_ref_close", on_click=_close_referral)
     ref = build_referral(selected, profile)
     for c in selected.study.contacts:
         ext = f" · kl. {c.extension}{' (simulováno)' if c.extension_simulated else ''}" if c.extension else ""
@@ -341,7 +416,8 @@ def _doctor_results(studies, profile) -> list:
     subject = st.text_input("Předmět", key=subj_key)
     body = st.text_area("Text zprávy (lze upravit)", key=body_key, height=360)
     st.caption("Nevkládejte jméno, rodné číslo ani jiné identifikační údaje pacienta. Odeslání je v prototypu pouze simulované.")
-    if st.button("Odeslat (simulace)", type="primary", disabled=bool(ref.blockers) or not body.strip()):
+    if st.button("Odeslat (simulace)", type="primary", key=f"{p}_ref_send",
+                 disabled=bool(ref.blockers) or not body.strip()):
         ref.subject, ref.body = subject, body
         st.success(simulate_send(ref))
         with st.expander("Text, který by byl odeslán", expanded=True):
@@ -349,7 +425,6 @@ def _doctor_results(studies, profile) -> list:
         st.metric("Čas od začátku do odeslání referral", f"{time.time() - ss.get(f'{p}_t0', time.time()):.0f} s")
         for k in (f"{p}_referral", subj_key, body_key):
             ss.pop(k, None)
-    return sections
 
 
 def _patient_results(studies, profile) -> list:
@@ -393,7 +468,8 @@ def step_results(studies) -> None:
     if profile is None:
         st.info("Nejprve zadejte údaje o nemoci.")
         return
-    st.button("✏️ Upravit údaje", on_click=_go, args=("detail",), key="wiz_edit")
+    edit_step = "detail" if lay else ss.get("wiz_edit_step", "detail")
+    st.button("✏️ Upravit údaje", on_click=_go, args=(edit_step,), key="wiz_edit")
     if lay:
         sections = _patient_results(studies, profile)
     else:
@@ -419,5 +495,5 @@ def run(studies) -> None:
         ss["wiz_scrolled"] = ss.get("wiz_scroll_top", 0)
         _scroll_to_top()
     {"role": step_role, "doc_choice": step_doc_choice, "report": step_report, "review": step_review,
-     "detail": step_detail}.get(step, lambda: step_results(studies))()
+     "detail": step_detail, "quick": step_quick}.get(step, lambda: step_results(studies))()
     disclaimer(lay=_lay() and step != "role")

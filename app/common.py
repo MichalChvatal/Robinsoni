@@ -324,10 +324,13 @@ def biomarker_column_config(bio_dict: BiomarkerDictionary, extra_markers: list[s
 
 
 def render_result(r: CohortResult, *, lay: bool = False, profile: PatientProfile | None = None,
-                  collapsed: bool = False) -> None:
+                  collapsed: bool = False, icon: str | None = None, group_label: str | None = None) -> None:
     s = r.study
-    st.markdown(f"**{STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
-    st.caption(f"{STATUS_LABELS[r.status]} · {s.indication}" + ("" if r.targeted else " · studie pro více druhů nádorů"))
+    st.markdown(f"**{icon or STATUS_ICONS[r.status]} {s.acronym}** · {s.study_id} · _{r.cohort['label']}_")
+    multi = "studie pro více druhů nádorů"
+    show_multi = not r.targeted and multi not in (group_label or "").lower()
+    st.caption((f"{group_label} · " if group_label else "") + f"{STATUS_LABELS[r.status]} · {s.indication}"
+               + (f" · {multi}" if show_multi else ""))
     note = sex_caution(r, profile) if profile else None
     if note:
         st.warning(note)
