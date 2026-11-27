@@ -1,0 +1,2 @@
+pydicom>=3,<4
+pynetdicom>=3,<4
