@@ -7,11 +7,14 @@ from dataclasses import replace
 
 import pytest
 from mr_quality_monitor.config import ReceiverConfig
+from mr_quality_monitor.gui.presentation import COLORS, STATUS_SYMBOLS, STATUS_TEXT
 from mr_quality_monitor.gui.view_data import MonitorReader
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 QtCore = importlib.import_module("PySide6.QtCore")
+QtTest = importlib.import_module("PySide6.QtTest")
+QtGui = importlib.import_module("PySide6.QtGui")
 MainWindow = importlib.import_module("mr_quality_monitor.gui.main_window").MainWindow
 
 
@@ -40,17 +43,52 @@ def close_window(app, window):
 
 def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
     window = MainWindow(gui_demo.config, refresh_interval_ms=60000)
+    window.show()
     try:
         wait_for(app, lambda: window.snapshot is not None)
         assert window.sequence_table.rowCount() == 4
-        assert "6000" == window.sequence_table.item(2, 3).text()
-        assert "Kritická" in window.sequence_table.item(2, 2).text()
-        window.sequence_table.selectRow(2)
+        assert window.sequence_table.columnCount() == 1
+        assert [entry.text() for entry in window.legend.entries] == list(STATUS_TEXT.values())
+        assert window.legend.columns == 4
+        window.resize(window.minimumWidth(), window.height())
+        wait_for(app, lambda: window.legend.columns == 2)
+        window.resize(660, 540)
+        wait_for(app, lambda: window.legend.columns == 4)
+        for index, status in enumerate(STATUS_TEXT):
+            item = window.sequence_table.item(index, 0)
+            assert item.text().startswith(STATUS_SYMBOLS[status])
+            assert item.background().color() == QtGui.QColor(COLORS[status][0])
+        assert not window.detail_dialog.isVisible()
+        assert not window.study_panel.isVisible()
+        window.study_details_button.click()
+        assert window.study_panel.isVisible()
+        window.study_details_button.click()
+        assert not window.study_panel.isVisible()
+        item = window.sequence_table.item(2, 0)
+        QtTest.QTest.mouseClick(
+            window.sequence_table.viewport(),
+            QtCore.Qt.MouseButton.LeftButton,
+            pos=window.sequence_table.visualItemRect(item).center(),
+        )
         app.processEvents()
+        assert window.detail_dialog.isVisible()
+        assert window.detail.tabs.tabText(window.detail.tabs.currentIndex()) == "Přehled"
+        explanation = window.detail.explanation.text().replace("\u00a0", " ")
+        assert "Čas opakování (TR) má hodnotu 6 000 ms" in explanation
+        assert "od 3 500 do 4 500 ms" in explanation
+        assert "Počet dotčených snímků nebo rámců: 3." in explanation
+        rect = window.sequence_table.visualItemRect(item)
+        image = window.sequence_table.viewport().grab().toImage()
+        scale = image.devicePixelRatio()
+        assert image.pixelColor(
+            int((rect.right() - 8) * scale), int(rect.center().y() * scale)
+        ) == QtGui.QColor(COLORS["RED"][0])
         assert "kritická" in window.detail.heading.text()
+        assert "TR: 6000 ms" in window.detail.summary.text()
         assert window.detail.checks.rowCount() == 9
         assert window.detail.timeline.rowCount() == 1
         tree = window.detail.metadata
+        window.detail.tabs.setCurrentIndex(window.detail.tabs.indexOf(tree))
         assert tree.topLevelItemCount() > 40
         node = next(
             tree.topLevelItem(index)
@@ -64,7 +102,12 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         window.refresh()
         wait_for(app, lambda: not window.busy)
         assert window.detail.metadata.isExpanded(window.detail.metadata.indexFromItem(node))
+        assert window.detail.tabs.currentWidget() is tree
         assert window.row_key == "seq:DEMO_CRITICAL"
+        window.detail_dialog.close()
+        assert not window.detail_dialog.isVisible()
+        window.sequence_details_button.click()
+        assert window.detail_dialog.isVisible()
     finally:
         close_window(app, window)
 
@@ -100,6 +143,35 @@ def test_slow_read_keeps_event_loop_responsive_and_close_nonblocking(app, gui_de
         release.set()
         timer.stop()
         close_window(app, window)
+
+
+def test_critical_overview_groups_findings_and_marks_stale(app, gui_demo):
+    snapshot = MonitorReader(gui_demo.root).read()
+    row = snapshot.rows[2]
+    tr = next(check for check in row.evaluations[0]["checks"] if check["status"] == "RED")
+    missing = {
+        **tr,
+        "field": "SliceThickness",
+        "reason": "required_metadata_absent",
+        "actual": None,
+        "expected": {},
+        "action": "",
+    }
+    warning = {**tr, "field": "EchoTime", "status": "ORANGE"}
+    evaluation = {
+        **row.evaluations[0],
+        "checks": [tr, tr, {**tr, "frame_index": 2}, missing, warning],
+    }
+    detail = importlib.import_module("mr_quality_monitor.gui.sequence_detail").SequenceDetail()
+    detail.show_row(replace(row, evaluations=(evaluation,)), stale=True)
+    explanation = detail.explanation.text()
+    assert explanation.startswith("Zastaralý výsledek")
+    assert explanation.count("Čas opakování (TR)") == 1
+    assert "Počet dotčených snímků nebo rámců: 2." in explanation
+    assert "chybí povinný údaj „Tloušťka řezu“" in explanation
+    assert "Čas echa" not in explanation
+    detail.show_row(replace(row, evaluations=()))
+    assert detail.explanation.text() == "Konkrétní důvod v uloženém výsledku chybí."
 
 
 def test_late_response_for_old_selection_is_discarded(app, gui_demo):
@@ -155,8 +227,10 @@ def test_read_error_masks_success_and_does_not_switch_study(app, gui_demo):
         window.refresh()
         wait_for(app, lambda: not window.busy)
         assert window.display_stale
-        assert "Nevyhodnoceno" in window.sequence_table.item(0, 2).text()
-        assert "Kritická" in window.sequence_table.item(2, 2).text()
+        for index, status in ((0, "GRAY"), (2, "RED")):
+            item = window.sequence_table.item(index, 0)
+            assert item.text().startswith(STATUS_SYMBOLS[status])
+            assert item.background().color() == QtGui.QColor(COLORS[status][0])
         assert window.study_uid == snapshot.study_uid
         assert "sensitive" not in window.message_label.text()
     finally:

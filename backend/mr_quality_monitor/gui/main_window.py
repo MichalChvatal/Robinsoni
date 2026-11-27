@@ -5,6 +5,8 @@ import logging
 from PySide6.QtCore import QObject, QSignalBlocker, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -12,16 +14,17 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
-    QSplitter,
+    QSizePolicy,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from ..config import ReceiverConfig
 from .fonts import ensure_font
-from .presentation import COLORS, STATUS_TEXT, effective_status, reason_text
+from .presentation import COLORS, STATUS_SYMBOLS, STATUS_TEXT, effective_status
 from .sequence_detail import SequenceDetail, color_item, table
-from .view_data import MonitorReader, measured
+from .view_data import MonitorReader
 
 LOG = logging.getLogger(__name__)
 
@@ -53,6 +56,41 @@ class ReadWorker(QObject):
             self.failed.emit(generation)
 
 
+class StatusLegend(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum)
+        self.setAccessibleName("Legenda stavů sekvencí")
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setSpacing(6)
+        self.entries = []
+        for status, caption in STATUS_TEXT.items():
+            entry = label(caption)
+            entry.setWordWrap(False)
+            background, foreground = COLORS[status]
+            entry.setStyleSheet(
+                f"background: {background}; color: {foreground}; padding: 5px 8px;"
+                "border-radius: 5px;"
+            )
+            self.entries.append(entry)
+        self.columns = 0
+        self._arrange(2)
+
+    def _arrange(self, columns):
+        if columns == self.columns:
+            return
+        self.columns = columns
+        for index, entry in enumerate(self.entries):
+            self.grid.addWidget(entry, *divmod(index, columns))
+
+    def resizeEvent(self, event):
+        single_row_width = sum(entry.sizeHint().width() for entry in self.entries)
+        single_row_width += 3 * self.grid.horizontalSpacing()
+        self._arrange(4 if event.size().width() >= single_row_width else 2)
+        super().resizeEvent(event)
+
+
 class MainWindow(QMainWindow):
     request_read = Signal(int, object, object)
     snapshot_applied = Signal()
@@ -69,8 +107,8 @@ class MainWindow(QMainWindow):
         self.row_key = None
         self.display_stale = True
         self.setWindowTitle("MR Quality Monitor — DEMO")
-        self.resize(1440, 940)
-        self.setMinimumSize(1040, 720)
+        self.resize(660, 540)
+        self.setMinimumSize(400, 330)
         self._build()
         self.reader_thread = QThread(self)
         self.worker = ReadWorker(reader or MonitorReader(config.storage_root))
@@ -95,83 +133,86 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         heading.addWidget(label("MR Quality Monitor", "title"))
         heading.addStretch()
-        heading.addWidget(label("DEMO  ·  POUZE METADATA", "demoBadge"))
+        heading.addWidget(label("DEMO · metadata", "demoBadge"))
         outer.addLayout(heading)
-        outer.addWidget(
-            label(
-                "Obrazová kvalita není hodnocena. "
-                "Barvy vyjadřují pouze požadavky zvoleného DEMO protokolu.",
-                "subtitle",
-            )
-        )
         selectors = QHBoxLayout()
         selectors.addWidget(label("Vyšetření"))
         self.study_combo = QComboBox()
-        self.study_combo.setMinimumWidth(360)
+        self.study_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.study_combo.setMinimumContentsLength(12)
         self.study_combo.currentIndexChanged.connect(self._study_changed)
         selectors.addWidget(self.study_combo, 2)
-        selectors.addWidget(label("Větev historie"))
+        outer.addLayout(selectors)
+        self.state_label = label("○ Čeká na data", "stateBadge")
+        outer.addWidget(self.state_label)
+        self.message_label = label("Načítám místní přehled…", "message")
+        outer.addWidget(self.message_label)
+        self.legend = StatusLegend()
+        outer.addWidget(self.legend)
+        self.sequence_table = table(["Sekvence"])
+        self.sequence_table.setObjectName("sequenceTable")
+        self.sequence_table.setWordWrap(False)
+        self.sequence_table.verticalHeader().setDefaultSectionSize(40)
+        header = self.sequence_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.sequence_table.itemClicked.connect(self._open_sequence)
+        self.sequence_table.itemActivated.connect(self._open_sequence)
+        self.sequence_table.itemSelectionChanged.connect(self._row_selected)
+        outer.addWidget(self.sequence_table, 1)
+        actions = QHBoxLayout()
+        self.sequence_details_button = QPushButton("Detail sekvence")
+        self.sequence_details_button.setEnabled(False)
+        self.sequence_details_button.clicked.connect(self._open_sequence)
+        actions.addWidget(self.sequence_details_button)
+        actions.addStretch()
+        self.study_details_button = QPushButton("Podrobnosti vyšetření")
+        self.study_details_button.setCheckable(True)
+        actions.addWidget(self.study_details_button)
+        outer.addLayout(actions)
+
+        card = QFrame()
+        self.study_panel = card
+        card.setObjectName("studyCard")
+        card.hide()
+        self.study_details_button.toggled.connect(card.setVisible)
+        grid = QGridLayout(card)
+        grid.addWidget(label("Větev historie"), 0, 0)
         self.branch_combo = QComboBox()
         self.branch_combo.currentIndexChanged.connect(self._branch_changed)
-        selectors.addWidget(self.branch_combo, 1)
+        grid.addWidget(self.branch_combo, 0, 1)
         refresh_button = QPushButton("Obnovit")
         refresh_button.clicked.connect(self.refresh)
-        selectors.addWidget(refresh_button)
-        outer.addLayout(selectors)
-        card = QFrame()
-        card.setObjectName("studyCard")
-        grid = QGridLayout(card)
+        grid.addWidget(refresh_button, 0, 2)
         self.patient_label = label("Pacient: —")
         self.date_label = label("Datum studie: —")
         self.scanner_label = label("MR přístroj: —")
         self.protocol_label = label("Protokol: —")
-        self.state_label = label("○ Čeká na data", "stateBadge")
-        self.state_label.setMinimumWidth(210)
-        grid.addWidget(self.patient_label, 0, 0)
-        grid.addWidget(self.date_label, 0, 1)
-        grid.addWidget(self.scanner_label, 1, 0)
-        grid.addWidget(self.protocol_label, 1, 1)
-        grid.addWidget(self.state_label, 0, 2, 2, 1)
-        outer.addWidget(card)
-        self.message_label = label("Načítám místní přehled…", "message")
-        outer.addWidget(self.message_label)
-        self.splitter = QSplitter(Qt.Orientation.Vertical)
-        self.sequence_table = table(
-            [
-                "#",
-                "Sekvence",
-                "Stav",
-                "TR [ms]",
-                "TE [ms]",
-                "Tloušťka [mm]",
-                "Snímky",
-                "Výsledek kontroly",
-                "Akce",
-            ]
-        )
-        self.sequence_table.setObjectName("sequenceTable")
-        self.sequence_table.setWordWrap(False)
-        self.sequence_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Interactive
-        )
-        for index, width in enumerate((42, 245, 180, 75, 75, 100, 65, 290, 215)):
-            self.sequence_table.setColumnWidth(index, width)
-        self.sequence_table.itemSelectionChanged.connect(self._row_selected)
-        self.detail = SequenceDetail()
-        self.splitter.addWidget(self.sequence_table)
-        self.splitter.addWidget(self.detail)
-        self.splitter.setSizes([390, 310])
-        outer.addWidget(self.splitter, 1)
+        grid.addWidget(self.patient_label, 1, 0)
+        grid.addWidget(self.date_label, 1, 1, 1, 2)
+        grid.addWidget(self.scanner_label, 2, 0)
+        grid.addWidget(self.protocol_label, 2, 1, 1, 2)
         self.receiver_label = label("Přijímač: stav neznámý", "receiverStatus")
         self.receiver_error_label = label("", "receiverError")
-        outer.addWidget(self.receiver_label)
-        outer.addWidget(self.receiver_error_label)
-        self.statusBar().showMessage("Databáze pouze pro čtení · přijímač se spouští samostatně")
+        grid.addWidget(self.receiver_label, 3, 0, 1, 3)
+        grid.addWidget(self.receiver_error_label, 4, 0, 1, 3)
+        outer.addWidget(card)
+
+        self.detail_dialog = QDialog(self)
+        self.detail_dialog.setWindowTitle("Detail sekvence")
+        self.detail_dialog.resize(920, 560)
+        detail_layout = QVBoxLayout(self.detail_dialog)
+        self.detail = SequenceDetail()
+        detail_layout.addWidget(self.detail, 1)
+        close_detail = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close_detail.button(QDialogButtonBox.StandardButton.Close).setText("Zavřít")
+        close_detail.rejected.connect(self.detail_dialog.close)
+        detail_layout.addWidget(close_detail)
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #f5f7fb; color: #243449;
                 font-family: 'Segoe UI'; font-size: 10pt; }
             QLabel#title { font-size: 23pt; font-weight: 700; color: #16283e; }
-            QLabel#subtitle { color: #637187; }
             QLabel#demoBadge { background: #fff0cd; color: #805400; padding: 8px 14px;
                 border-radius: 8px; font-weight: 700; }
             QFrame#studyCard { background: white; border: 1px solid #dbe2ec;
@@ -212,6 +253,7 @@ class MainWindow(QMainWindow):
         self.snapshot = None
         self.row_key = None
         self.sequence_table.setRowCount(0)
+        self.detail_dialog.close()
         self.detail.show_row(None)
         self.patient_label.setText("Pacient: načítám…")
         self.protocol_label.setText("Protokol: načítám…")
@@ -219,6 +261,7 @@ class MainWindow(QMainWindow):
         self.scanner_label.setText("MR přístroj: —")
         self._state("GRAY", "Načítám vyšetření")
         self.message_label.setText("Načítám zvolené vyšetření…")
+        self.message_label.show()
         self.refresh()
 
     def _study_changed(self):
@@ -278,10 +321,8 @@ class MainWindow(QMainWindow):
             self.scanner_label.setText("MR přístroj: " + snapshot.scanner)
             self.protocol_label.setText("Protokol: " + snapshot.protocol_name)
             self._state(snapshot.status)
-            self.message_label.setText(
-                snapshot.message
-                or f"Přijato {snapshot.received} objektů · zobrazeny uložené výsledky"
-            )
+            self.message_label.setText(snapshot.message)
+            self.message_label.setVisible(bool(snapshot.message))
             if redraw:
                 self._draw_rows()
             self._health(snapshot.health)
@@ -299,6 +340,7 @@ class MainWindow(QMainWindow):
                 "Data nelze načíst. Ověřte dostupnost místního úložiště; "
                 "zobrazené údaje mohou být zastaralé."
             )
+            self.message_label.show()
             self._state(
                 "RED" if self.snapshot and self.snapshot.status == "RED" else "GRAY",
                 "Přehled není aktuální",
@@ -316,54 +358,19 @@ class MainWindow(QMainWindow):
         self.state_label.setStyleSheet(f"background: {background}; color: {foreground};")
 
     def _draw_rows(self):
-        from PySide6.QtWidgets import QTableWidgetItem
-
         snapshot = self.snapshot
         self.sequence_table.setUpdatesEnabled(False)
         with QSignalBlocker(self.sequence_table):
             self.sequence_table.setRowCount(len(snapshot.rows))
             for index, row in enumerate(snapshot.rows):
                 status = effective_status(row, self.display_stale)
-                problems = tuple(
-                    check
-                    for value in row.evaluations
-                    for check in value.get("checks", ())
-                    if check["status"] != "GREEN"
-                )
-                pending_reasons = [
-                    reason
-                    for value in row.evaluations
-                    for reason in value.get("reasons", ())
-                    if reason
-                    not in {"image_not_requested_in_demo", "demo_metadata_requirements_passed"}
-                ]
-                message = (
-                    reason_text(problems[0]["reason"])
-                    if problems
-                    else reason_text(";".join(dict.fromkeys(pending_reasons)))
-                    if pending_reasons
-                    else reason_text(row.reason)
-                )
-                if self.display_stale:
-                    message = "Zastaralé hodnocení · " + message
-                action = row.action or ("Vyčkat na vyhodnocení" if status == "GRAY" else "—")
-                values = (
-                    row.order,
-                    row.name,
-                    STATUS_TEXT[status],
-                    measured(row.records, "RepetitionTime"),
-                    measured(row.records, "EchoTime"),
-                    measured(row.records, "SliceThickness"),
-                    str(row.count),
-                    message,
-                    action,
-                )
-                for column, value in enumerate(values):
-                    item = QTableWidgetItem(value)
-                    item.setData(Qt.ItemDataRole.UserRole, row.key)
-                    item.setToolTip(value)
-                    self.sequence_table.setItem(index, column, item)
-                color_item(self.sequence_table.item(index, 2), status)
+                item = QTableWidgetItem(f"{STATUS_SYMBOLS[status]}  {row.name}")
+                item.setData(Qt.ItemDataRole.UserRole, row.key)
+                description = f"{row.name} · {STATUS_TEXT[status]}"
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, description)
+                item.setToolTip(description)
+                color_item(item, status)
+                self.sequence_table.setItem(index, 0, item)
             selected = next(
                 (index for index, row in enumerate(snapshot.rows) if row.key == self.row_key), 0
             )
@@ -373,12 +380,29 @@ class MainWindow(QMainWindow):
         self._row_selected()
 
     def _row_selected(self):
+        index = self.sequence_table.currentRow()
+        rows = self.snapshot.rows if self.snapshot else ()
+        row = rows[index] if 0 <= index < len(rows) else None
+        self.row_key = row.key if row else None
+        self.sequence_details_button.setEnabled(row is not None)
+        if self.detail_dialog.isVisible():
+            if row:
+                self.detail.show_row(row, self.snapshot.history, self.display_stale)
+            else:
+                self.detail_dialog.close()
+
+    @Slot()
+    def _open_sequence(self):
         if self.snapshot is None:
             return
         index = self.sequence_table.currentRow()
-        row = self.snapshot.rows[index] if 0 <= index < len(self.snapshot.rows) else None
-        self.row_key = row.key if row else None
-        self.detail.show_row(row, self.snapshot.history, self.display_stale)
+        if 0 <= index < len(self.snapshot.rows):
+            self.detail.show_row(
+                self.snapshot.rows[index], self.snapshot.history, self.display_stale, opening=True
+            )
+            self.detail_dialog.show()
+            self.detail_dialog.raise_()
+            self.detail_dialog.activateWindow()
 
     def _health(self, health):
         state = health.get("observed_state", "unknown")
@@ -415,11 +439,12 @@ class MainWindow(QMainWindow):
         self.receiver_error_label.setText(
             f"Poslední provozní chyba: {error_text} · {health.get('last_error_at', '')}"
             if health.get("last_error")
-            else "Automatická analýza není aktivní; zobrazeny jsou uložené výsledky."
+            else ""
         )
 
     def closeEvent(self, event):
         if self.reader_thread.isRunning():
+            self.detail_dialog.close()
             self.closing = True
             self.timer.stop()
             self.reader_thread.quit()

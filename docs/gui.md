@@ -45,22 +45,25 @@ Ukázka nepředstírá běžící receiver. Bez skutečného čerstvého heartbe
 ## Hlavní okno
 
 - Výběr studie zachovává aktuální vyšetření i při příchodu nové studie.
-- Výběr větve historie pouze přepíná zobrazení. Nemění původní protokol studie.
-- Horní karta ukazuje místní pacientský token, datum, přístroj, protokol a stav.
-- Tabulka má pořadí, název, stav, TR, TE, tloušťku, počet snímků/rámců, nález a akci.
+- Výchozí přehled ukazuje celkový stav a jednosloupcový semafor. Barvu a symbol
+  každého řádku vysvětluje legenda nad tabulkou.
+- Tlačítko **Podrobnosti vyšetření** rozbalí místní pacientský token, datum,
+  přístroj, protokol, stav příjmu a volbu větve historie.
 - Více dílčích akvizic jedné definice je dostupných v samostatných řádcích.
 - Neznámé a právě přijaté nezpracované série se zobrazí samostatně šedě.
-- Detail obsahuje skutečné a očekávané hodnoty, jednotlivé nálezy, zdrojové tagy
-  a historii stavů vybrané sekvence.
+- Kliknutí na řádek nebo tlačítko **Detail sekvence** otevře skutečné a očekávané
+  hodnoty, počet snímků, nálezy, zdrojové tagy a historii stavů vybrané sekvence.
+- U červené sekvence se nejdřív zobrazí přehled **Proč je sekvence červená?**
+  Uvede konkrétní kritické nálezy a jejich požadavky podle protokolu. Opakování
+  téhož nálezu sloučí a označí zastaralý výsledek.
 
 Barvu doplňuje slovní stav a symbol. Zelená znamená pouze splnění metadatového
 rozsahu konkrétního DEMO protokolu. V detailu jsou oddělené stavy metadat,
 dokončení a neprovedené obrazové kontroly. Výsledek nepřikazuje klinické opakování
 sekvence; akce pocházejí z DEMO pravidel.
 
-TR/TE/tloušťka s více známými hodnotami ukazuje rozsah, nikoliv průměr.
-Hvězdička upozorní na současně chybějící/nejisté hodnoty. Metadata lze rozbalovat
-po parametrech na jednotlivé instance/rámce. Dětské řádky se vytvářejí až při
+Metadata lze rozbalovat po parametrech na jednotlivé instance/rámce.
+Dětské řádky se vytvářejí až při
 rozbalení, aby velká studie nezablokovala vykreslení tisíci položek.
 
 PatientID, PatientName a AccessionNumber se v tomto režimu nezobrazují, protože
@@ -110,7 +113,7 @@ není automaticky interpretována jako stále nefunkční přijímač.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe tools\render_gui.py --config runtime\gui_demo\viewer_config.yaml --output test-results\gui-stage6.png
+.\.venv\Scripts\python.exe tools\render_gui.py --config runtime\gui_demo\viewer_config.yaml --output test-results\gui-semafor.png
 ```
 
 Qt testy používají offscreen platformu a syntetická data. Je-li PySide6 nepřítomné,
@@ -122,6 +125,5 @@ Ověřeno: čtyři barvy a detaily, líné rozbalování metadat, responzivní e
 při pomalém čtení, sloučení požadavků, zahazování staré odpovědi, zachování výběru,
 maskování zastaralé zelené a skutečný C-STORE po uzavření GUI.
 
-Automatický analytický worker, ovládání služeb a automatická validace nově
-přijatých dat ještě nejsou propojené. GUI tuto skutečnost uvádí; do další
-integrační etapy zobrazuje uložené výsledky a nová data čekající na zpracování.
+Při běžící analýze se výsledky nově přijatých dat objeví po automatickém obnovení
+přehledu. Spuštění příjmu a analýzy popisuje [návod k integraci](integration.md).

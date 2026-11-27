@@ -2,11 +2,16 @@
 
 import json
 
+STATUS_SYMBOLS = {"GREEN": "●", "ORANGE": "▲", "RED": "■", "GRAY": "○"}
+STATUS_LABELS = {
+    "GREEN": "OK · DEMO",
+    "ORANGE": "Varování",
+    "RED": "Kritická odchylka",
+    "GRAY": "Nevyhodnoceno",
+}
 STATUS_TEXT = {
-    "GREEN": "● OK · DEMO",
-    "ORANGE": "▲ Varování",
-    "RED": "■ Kritická odchylka",
-    "GRAY": "○ Nevyhodnoceno",
+    status: f"{STATUS_SYMBOLS[status]} {description}"
+    for status, description in STATUS_LABELS.items()
 }
 COLORS = {
     "GREEN": ("#ddf3e6", "#17643b"),
@@ -85,3 +90,128 @@ def requirement_text(rule: dict) -> str:
 
 def effective_status(row, stale: bool) -> str:
     return "GRAY" if stale and row.status != "RED" else row.status
+
+
+PARAMETER_NAMES = {
+    "RepetitionTime": "Čas opakování (TR)",
+    "EchoTime": "Čas echa (TE)",
+    "InversionTime": "Inverzní čas (TI)",
+    "SliceThickness": "Tloušťka řezu",
+    "SpacingBetweenSlices": "Rozestup mezi řezy",
+    "PixelSpacing": "Velikost pixelu",
+    "FlipAngle": "Sklápěcí úhel",
+    "Rows": "Počet řádků obrazu",
+    "Columns": "Počet sloupců obrazu",
+    "MagneticFieldStrength": "Síla magnetického pole",
+    "NumberOfAverages": "Počet opakování pro průměrování",
+    "EchoTrainLength": "Počet ech v sérii",
+    "PixelBandwidth": "Šířka pásma na pixel",
+}
+GEOMETRY_NAMES = {
+    "incomplete_geometry": "chybí údaje o poloze nebo rozměrech řezů",
+    "uncertain_dimension": "některé údaje potřebné k seskupení řezů jsou nejasné",
+    "invalid_geometry": "údaje o poloze nebo rozměrech řezů jsou neplatné",
+    "repeated_slice_position": "více řezů má stejnou polohu",
+    "irregular_slice_spacing": "rozestupy mezi řezy nejsou stejné",
+    "conflicting_declared_spacing": "snímky uvádějí různé rozestupy mezi řezy",
+    "declared_spacing_mismatch": "skutečný rozestup nesouhlasí s údajem ve snímcích",
+}
+ACTION_TEXT = {
+    "Review geometry findings": "Zkontrolujte údaje o geometrii řezů.",
+    "Review DEMO timing requirement": "Ověřte časování podle ukázkového protokolu.",
+}
+
+
+def plain_value(value) -> str:
+    if isinstance(value, (list, tuple)):
+        return " × ".join(plain_value(item) for item in value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return (
+            format(value, ",.15g" if isinstance(value, float) else ",d")
+            .replace(",", "\u00a0")
+            .replace(".", ",")
+        )
+    return display_value(value)
+
+
+def plain_requirement(rule: dict) -> str:
+    constraint = rule.get("constraint") or {}
+    kind = constraint.get("kind")
+    unit = f" {rule['unit']}" if rule.get("unit") else ""
+    if kind == "range":
+        return (
+            f"hodnotu od {plain_value(constraint['minimum'])} "
+            f"do {plain_value(constraint['maximum'])}{unit}"
+        )
+    if kind == "target":
+        tolerance_unit = " %" if constraint["tolerance_kind"] == "relative_percent" else unit
+        return (
+            f"hodnotu {plain_value(constraint['target'])}{unit} "
+            f"s tolerancí ±{plain_value(constraint['tolerance'])}{tolerance_unit}"
+        )
+    if kind == "exact":
+        return f"hodnotu {plain_value(constraint['value'])}{unit}"
+    if kind == "one_of":
+        return "jednu z hodnot " + " nebo ".join(
+            plain_value(value) + unit for value in constraint["values"]
+        )
+    if kind == "contains":
+        return f"údaj obsahující „{constraint['value']}“"
+    return ""
+
+
+def critical_description(check: dict) -> str:
+    field = check.get("field")
+    name = PARAMETER_NAMES.get(field, field or "Kontrolovaný údaj")
+    reason = check.get("reason")
+    actual = check.get("actual")
+    if reason == "geometry_issues":
+        findings = [GEOMETRY_NAMES[code] for code in (actual or ()) if code in GEOMETRY_NAMES]
+        return (
+            "Kontrola geometrie řezů zjistila odchylku. "
+            + ("; ".join(findings).capitalize() + "." if findings else "")
+        ).strip()
+    if reason == "required_metadata_absent":
+        message = f"V datech chybí povinný údaj „{name}“."
+    elif reason == "outside_requirement" and actual is not None:
+        unit = f" {check['unit']}" if check.get("unit") else ""
+        message = f"{name} má hodnotu {plain_value(actual)}{unit} mimo požadavek protokolu."
+    else:
+        description = REASONS.get(reason, "Konkrétní důvod v uloženém výsledku chybí")
+        message = f"{name} — {description}."
+    expected = plain_requirement(check.get("expected") or {})
+    if expected:
+        message += f"\nUkázkový protokol očekává {expected}."
+    constraint = (check.get("expected") or {}).get("constraint") or {}
+    if reason == "outside_requirement" and constraint.get("warning_minimum") is not None:
+        unit = f" {check['unit']}" if check.get("unit") else ""
+        message += (
+            f"\nHodnota je i mimo pásmo varování od {plain_value(constraint['warning_minimum'])} "
+            f"do {plain_value(constraint['warning_maximum'])}{unit}."
+        )
+    return message
+
+
+def critical_overview(row) -> str:
+    findings = {}
+    for evaluation in row.evaluations:
+        for check in evaluation.get("checks", ()):
+            if check.get("status") != "RED":
+                continue
+            message = critical_description(check)
+            action = check.get("action") or ""
+            affected = findings.setdefault((message, ACTION_TEXT.get(action, action)), set())
+            if uid := check.get("sop_uid"):
+                affected.add((uid, check.get("frame_index")))
+    if not findings:
+        if row.reason == "required_sequence_absent_at_finalization":
+            return "Při uzavření vyšetření chyběla tato povinná sekvence."
+        return "Konkrétní důvod v uloženém výsledku chybí."
+    blocks = []
+    for (message, action), affected in findings.items():
+        if affected:
+            message += f"\nPočet dotčených snímků nebo rámců: {len(affected)}."
+        if action:
+            message += f"\nPodle protokolu: {action}"
+        blocks.append(message)
+    return "\n\n".join(blocks)

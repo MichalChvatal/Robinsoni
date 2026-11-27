@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QLabel,
+    QScrollArea,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -18,8 +19,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .presentation import COLORS, STATUS_TEXT, display_value, reason_text, requirement_text
-from .view_data import MonitorRow, known
+from .presentation import (
+    COLORS,
+    STATUS_TEXT,
+    critical_overview,
+    display_value,
+    reason_text,
+    requirement_text,
+)
+from .view_data import MonitorRow, known, measured
 
 STATUS_ROLE = Qt.ItemDataRole.UserRole + 1
 
@@ -63,11 +71,34 @@ class SequenceDetail(QWidget):
         self.heading.setTextFormat(Qt.TextFormat.PlainText)
         self.heading.setObjectName("detailHeading")
         layout.addWidget(self.heading)
+        self.tabs = QTabWidget()
+        overview = QScrollArea()
+        overview.setWidgetResizable(True)
+        overview_content = QWidget()
+        overview_layout = QVBoxLayout(overview_content)
+        overview_layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Proč je sekvence červená?")
+        title.setStyleSheet("font-size: 16pt; font-weight: 700; color: #a02424;")
+        overview_layout.addWidget(title)
+        self.explanation = QLabel()
+        self.explanation.setTextFormat(Qt.TextFormat.PlainText)
+        self.explanation.setWordWrap(True)
+        self.explanation.setStyleSheet("font-size: 12pt;")
+        self.explanation.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        overview_layout.addWidget(self.explanation)
+        overview_layout.addStretch()
+        overview.setWidget(overview_content)
+        self.tabs.addTab(overview, "Přehled")
+        technical = QWidget()
+        technical_layout = QVBoxLayout(technical)
         self.layers = QLabel("")
         self.layers.setTextFormat(Qt.TextFormat.PlainText)
         self.layers.setWordWrap(True)
-        layout.addWidget(self.layers)
-        self.tabs = QTabWidget()
+        technical_layout.addWidget(self.layers)
+        self.summary = QLabel()
+        self.summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.summary.setWordWrap(True)
+        technical_layout.addWidget(self.summary)
         self.checks = table(
             ["Parametr / kontrola", "Skutečnost", "Požadavek", "Stav", "Zdroj a důvod"]
         )
@@ -78,17 +109,45 @@ class SequenceDetail(QWidget):
         self.metadata.setAlternatingRowColors(True)
         self.metadata.itemExpanded.connect(self._expand)
         self.timeline = table(["Běh", "Čas hodnocení (UTC)", "Stav vybrané sekvence", "Autor"])
-        self.tabs.addTab(self.checks, "Požadavky a nálezy")
+        technical_layout.addWidget(self.checks, 1)
+        self.tabs.addTab(technical, "Požadavky a nálezy")
         self.tabs.addTab(self.metadata, "DICOM metadata")
         self.tabs.addTab(self.timeline, "Historie")
         layout.addWidget(self.tabs)
         self.records = ()
+        self.row_key = None
 
-    def show_row(self, row: MonitorRow | None, history=(), stale=False):
+    def show_row(self, row: MonitorRow | None, history=(), stale=False, *, opening=False):
+        row_key = row.key if row else None
+        critical = row is not None and row.status == "RED"
+        show_default = opening or row_key != self.row_key or self.tabs.isTabVisible(0) != critical
+        self.row_key = row_key
+        self.tabs.setTabVisible(0, critical)
+        if show_default:
+            self.tabs.setCurrentIndex(0 if critical else 1)
+        explanation = critical_overview(row) if critical else ""
+        if critical and stale:
+            explanation = "Zastaralý výsledek. Níže je poslední uložený nález.\n\n" + explanation
+        self.explanation.setText(explanation)
         self.checks.setRowCount(0)
         self.metadata.clear()
         self.timeline.setRowCount(0)
         self.records = row.records if row else ()
+        summary = [f"Snímky / rámce: {row.count}"] if row else []
+        if row:
+            for title, field, unit in (
+                ("TR", "RepetitionTime", "ms"),
+                ("TE", "EchoTime", "ms"),
+                ("Tloušťka", "SliceThickness", "mm"),
+            ):
+                value = measured(row.records, field)
+                if value != "—":
+                    summary.append(f"{title}: {value} {unit}")
+            if row.reason:
+                summary.append(reason_text(row.reason))
+            if row.action:
+                summary.append(row.action)
+        self.summary.setText(" · ".join(summary))
         if row and row.evaluations:
             metadata = ", ".join(
                 dict.fromkeys(STATUS_TEXT[item["metadata_status"]] for item in row.evaluations)
