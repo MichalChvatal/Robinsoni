@@ -1,0 +1,61 @@
+# Synthetic screen/test fixture. None of these values are clinical PI-QUAL limits.
+schema_version: 1
+protocol_id: GUI_DEMO
+version: 1.0-demo
+mode: DEMO
+display_name: Ukázka čtyř metadatových stavů
+author: Software demonstration
+source: Synthetic images only; not a clinical protocol
+sequences:
+  - sequence_id: DEMO_OK
+    display_name: T2 · ukázka bez odchylky
+    order: 1
+    image_required: false
+    completion: &completion {mode: expected_count, expected_members: 3}
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: ProtocolName, constraint: {kind: exact, value: DEMO_OK}}
+    parameters: &parameters
+      - rule_id: demo_tr
+        field: RepetitionTime
+        unit: ms
+        constraint: {kind: range, minimum: 3500, maximum: 4500, warning_minimum: 3000, warning_maximum: 5000}
+        action: Ověřit časování podle DEMO protokolu
+      - rule_id: demo_te
+        field: EchoTime
+        unit: ms
+        constraint: {kind: target, target: 100, tolerance: 15, tolerance_kind: absolute}
+        severity: warning
+        action: Ověřit echo podle DEMO protokolu
+      - rule_id: demo_slice
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: range, minimum: 2.5, maximum: 3.5}
+        action: Ověřit tloušťku podle DEMO protokolu
+  - sequence_id: DEMO_WARNING
+    display_name: T2 · tolerovatelná odchylka
+    order: 2
+    image_required: false
+    completion: *completion
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: ProtocolName, constraint: {kind: exact, value: DEMO_WARNING}}
+    parameters: *parameters
+  - sequence_id: DEMO_CRITICAL
+    display_name: T2 · kritická odchylka
+    order: 3
+    image_required: false
+    completion: *completion
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: ProtocolName, constraint: {kind: exact, value: DEMO_CRITICAL}}
+    parameters: *parameters
+  - sequence_id: DEMO_PENDING
+    display_name: T2 · dosud neúplná akvizice
+    order: 4
+    image_required: false
+    completion: *completion
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: ProtocolName, constraint: {kind: exact, value: DEMO_PENDING}}
+    parameters: *parameters

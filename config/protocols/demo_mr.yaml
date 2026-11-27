@@ -1,0 +1,52 @@
+# Synthetic demonstration only. These values are NOT PI-QUAL requirements.
+schema_version: 1
+protocol_id: MR_DEMO
+version: 1.0-demo
+mode: DEMO
+display_name: "DEMO — metadata only, no clinical quality assessment"
+author: Development example
+source: Synthetic software demonstration; not a clinical protocol
+sequences:
+  - sequence_id: T2_DEMO
+    display_name: DEMO T2 candidate
+    order: 1
+    required: true
+    image_required: false
+    geometry_severity: unknown
+    completion:
+      mode: explicit
+    identifiers:
+      - field: Modality
+        constraint: {kind: exact, value: MR}
+      - field: ScanningSequence
+        components: any
+        constraint: {kind: contains, value: SE}
+      - field: SeriesDescription
+        constraint: {kind: contains, value: t2, case_sensitive: false}
+    parameters:
+      - rule_id: demo_tr
+        field: RepetitionTime
+        unit: ms
+        constraint:
+          kind: range
+          minimum: 3500
+          maximum: 4500
+          warning_minimum: 3000
+          warning_maximum: 5000
+        severity: critical
+        on_missing: unknown
+        action: Review DEMO timing requirement
+      - rule_id: demo_te
+        field: EchoTime
+        unit: ms
+        constraint:
+          kind: target
+          target: 100
+          tolerance: 15
+          tolerance_kind: absolute
+        severity: warning
+      - rule_id: demo_slice
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: range, minimum: 2.5, maximum: 3.5}
+        severity: critical

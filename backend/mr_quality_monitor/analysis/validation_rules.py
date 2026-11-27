@@ -1,0 +1,56 @@
+"""Deterministic matching shared by identification and parameter checks."""
+
+from decimal import Decimal
+from typing import Literal
+
+from ..protocols.models import Contains, Exact, OneOf, Predicate, Range, Target
+
+Match = Literal["pass", "warning", "fail"]
+
+
+def scalar_match(value, constraint) -> Match:
+    if isinstance(constraint, Exact):
+        return "pass" if value == constraint.value else "fail"
+    if isinstance(constraint, OneOf):
+        return "pass" if value in constraint.values else "fail"
+    if isinstance(constraint, Contains):
+        if not isinstance(value, str):
+            return "fail"
+        expected = constraint.value
+        if not constraint.case_sensitive:
+            value, expected = value.casefold(), expected.casefold()
+        return "pass" if expected in value else "fail"
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return "fail"
+    if isinstance(constraint, Range):
+        if constraint.minimum <= value <= constraint.maximum:
+            return "pass"
+        if constraint.warning_minimum is not None and (
+            constraint.warning_minimum <= value <= constraint.warning_maximum
+        ):
+            return "warning"
+        return "fail"
+    if isinstance(constraint, Target):
+        # Decimal from the normalized decimal spelling preserves inclusive boundaries.
+        target, actual = Decimal(str(constraint.target)), Decimal(str(value))
+        scale = abs(target) / 100 if constraint.tolerance_kind == "relative_percent" else Decimal(1)
+        distance = abs(actual - target)
+        if distance <= Decimal(str(constraint.tolerance)) * scale:
+            return "pass"
+        if constraint.warning_tolerance is not None and (
+            distance <= Decimal(str(constraint.warning_tolerance)) * scale
+        ):
+            return "warning"
+        return "fail"
+    raise TypeError("Unsupported constraint")
+
+
+def matches(value, predicate: Predicate) -> Match:
+    if predicate.components == "scalar":
+        return scalar_match(value, predicate.constraint)
+    if not isinstance(value, tuple) or not value:
+        return "fail"
+    results = [scalar_match(component, predicate.constraint) for component in value]
+    if predicate.components == "any":
+        return "pass" if "pass" in results else "warning" if "warning" in results else "fail"
+    return "fail" if "fail" in results else "warning" if "warning" in results else "pass"
