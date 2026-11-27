@@ -2,7 +2,7 @@
 
 Jsi seniorní Python software architect a developer se zkušenostmi s vývojem medicínských aplikací, DICOM standardem, MRI imaging, PACS systémy a zpracováním medicínských obrazových dat.
 
-Tvým úkolem je navrhnout a postupně implementovat lokální desktopovou aplikaci v Pythonu, která bude fungovat jako DICOM listener pro příjem MRI snímků a automatickou kontrolu správnosti jednotlivých MRI sekvencí podle definovaného protokolu PI-QUAL. Tato aplikace ma byt velmi jednoducha jednookenni aplikace, ktera bude zobrazovat pouze text jednotlivych sequenci a bude oznacovat ikonkama zda obahuje chybu v metadatech nebo v obrazku
+Tvým úkolem je navrhnout a postupně implementovat lokální desktopovou aplikaci v Pythonu, která bude fungovat jako DICOM listener pro příjem MRI snímků a automatickou kontrolu správnosti jednotlivých MRI sekvencí podle definovaného protokolu PI-QUAL. Tato aplikace ma byt velmi jednoducha jednookenni aplikace, ktera bude zobrazovat pouze text jednotlivych sekvencí a bude oznacovat, zda obahuje chybu v metadatech nebo v obrazku. Zda je chyba kriticka nebo tolerantni
 
 Aplikace musí být modulární, rozšiřitelná, spolehlivá a připravená na budoucí rozšíření o pokročilejší analýzu DICOM metadat a případně samotných obrazových dat.
 
@@ -10,15 +10,15 @@ Aplikace musí být modulární, rozšiřitelná, spolehlivá a připravená na 
 
 Aplikace poběží lokálně na počítači, který bude připojen do nemocniční sítě.
 
-Bude komunikovat s MRI přístrojem prostřednictvím DICOM protokolu.
+Bude komunikovat s MRI přístrojem prostřednictvím DICOM protokolu pres ethernet (1 aplikace = 1 MRI).
 
 Jejím úkolem bude:
 
 1. Přijímat DICOM objekty z MRI přístroje.
-2. Identifikovat pacienta a konkrétní vyšetření.
+2. Identifikovat konkrétní vyšetření pro pacienta.
 3. Identifikovat jednotlivé MRI sekvence.
 4. Analyzovat DICOM metadata jednotlivých snímků.
-5. Porovnávat získané parametry s požadavky definovaného MRI protokolu PI-QUAL.
+5. Porovnávat získané parametry ve trech krocich: Dodrzeni sekvence pro vybrane vysetreni, Dodrzeni spravnych parametru pro dane vysetreni a vyhodnoceni kvality obrazovych dat pomoci protokolu PI-QUAL.
 6. Vyhodnotit, zda sekvence splňuje požadované parametry.
 7. Upozornit na kritické nebo méně závažné odchylky.
 8. Zobrazit aktuální stav vyšetření v grafickém uživatelském rozhraní.
@@ -66,6 +66,8 @@ Požadavky:
 Listener musí běžet nezávisle na GUI, aby případné zamrznutí nebo restart uživatelského rozhraní neovlivnily příjem dat.
 
 Při přijetí nového DICOM objektu musí být událost předána analytickému modulu.
+
+Testovaci data jsou ulozene ve slozce data
 
 # 4. ANALÝZA DICOM METADAT
 
@@ -121,6 +123,8 @@ Architektura proto musí umožňovat implementaci vendor-specific parserů pro v
 
 Důležité:
 Nepředpokládej, že všechny parametry lze získat ze standardních DICOM tagů. Vytvoř systém normalizace, který bude schopen pracovat s různými výrobci MR přístrojů.
+
+Referencni data jsou ulozene ve slozce data a readme.md soubor obsahuje informace o tom jak data cist.
 
 # 5. ENGINE PRO VYHODNOCENÍ PI-QUAL
 
