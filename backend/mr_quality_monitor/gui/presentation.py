@@ -20,6 +20,7 @@ COLORS = {
     "GRAY": ("#edf0f4", "#536173"),
 }
 REASONS = {
+    "no_previous_slice_for_slab_check": "První řez nemá předchozí řez pro porovnání návaznosti",
     "received_all_repeats_retained": "Přijato; všechny dílčí akvizice zachovány",
     "required_sequence_pending": "Požadovaná sekvence zatím nebyla vyhodnocena",
     "analysis_input_failed": "MR objekt se nepodařilo ověřit nebo přečíst",

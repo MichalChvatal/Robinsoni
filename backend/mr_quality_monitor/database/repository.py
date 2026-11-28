@@ -633,6 +633,16 @@ class HistoryRepository:
                         threshold=check["expected"],
                         affected_slices=tuple(int(path[6:-1]) for path in check["paths"]),
                         action=check["action"],
+                        per_image=tuple(
+                            ArtifactFinding(
+                                detector_id=detail["rule_id"].removeprefix("image:"),
+                                artifact_type=detail["field"], status=detail["status"],
+                                reason=detail["reason"], score=detail["actual"],
+                                threshold=detail["expected"], action=detail["action"],
+                                sop_uid=detail["sop_uid"],
+                            )
+                            for detail in check.get("per_image", ())
+                        ),
                     )
                     for check in result["checks"]
                     if check["rule_id"].startswith("image:")

@@ -96,6 +96,12 @@ def _group_checks(checks):
             key: value for key, value in check.items()
             if key not in {"sop_uid", "frame_index", "paths"}
         }
+        if check.get("rule_id", "").startswith("image:"):
+            signature.update(
+                acquisition=acquisition,
+                sop_uid=check.get("sop_uid"),
+                frame_index=check.get("frame_index"),
+            )
         key = (bool(check.get("sop_uid")), json.dumps(signature, sort_keys=True))
         group = groups.setdefault(key, [])
         entry = (acquisition, check)
@@ -272,7 +278,11 @@ class SequenceDetail(QWidget):
         checks = [(None, check) for check in row.checks] if row else []
         if row:
             for acquisition, evaluation in enumerate(row.evaluations, start=1):
-                checks.extend((acquisition, check) for check in evaluation.get("checks", ()))
+                checks.extend(
+                    (acquisition, detail)
+                    for check in evaluation.get("checks", ())
+                    for detail in (check.get("per_image") or (check,))
+                )
                 if evaluation["sequence_id"] is None:
                     for candidate in evaluation["identification"]["candidates"]:
                         if candidate["decision"] == "mismatch":

@@ -1,6 +1,7 @@
 """Deterministic MR artifact detectors (motion/ghosting, low SNR, slab discontinuity)."""
 
 import statistics
+from dataclasses import replace
 
 from .base import ArtifactDetector, ArtifactFinding, DetectorRegistry, SlicePixels
 
@@ -275,13 +276,17 @@ class SlabDiscontinuityDetector(ArtifactDetector):
         self, slices: tuple[SlicePixels, ...], *, role: str | None = None
     ) -> ArtifactFinding:
         if len(slices) < 3:
-            return ArtifactFinding(
+            finding = ArtifactFinding(
                 self.detector_id,
                 self.artifact_type,
                 "GRAY",
                 "too_few_slices_for_slab_check" if slices else "no_pixel_data",
                 None,
                 {"max_jump_ok": self.max_jump_ok, "max_jump_crit": self.max_jump_crit},
+            )
+            return replace(
+                finding,
+                per_image=tuple(replace(finding, sop_uid=image.sop_uid) for image in slices),
             )
         means = []
         for sl in slices:
@@ -304,6 +309,21 @@ class SlabDiscontinuityDetector(ArtifactDetector):
             if jmp > self.max_jump_crit and jmp > 3.5 * max(med_jump, 0.05)
         )
         threshold = {"max_jump_ok": self.max_jump_ok, "max_jump_crit": self.max_jump_crit}
+        per_image = []
+        for index, image in enumerate(slices):
+            status, reason, score = "GREEN", "slice_continuity_ok", None
+            if index == 0:
+                status, reason = "GRAY", "no_previous_slice_for_slab_check"
+            else:
+                score = round(jumps[index - 1], 4)
+                if index in crit_slices:
+                    status, reason = "RED", "slab_discontinuity_detected"
+                elif index in anomaly_slices:
+                    status, reason = "ORANGE", "mild_slab_discontinuity"
+            per_image.append(ArtifactFinding(
+                self.detector_id, self.artifact_type, status, reason, score, threshold,
+                sop_uid=image.sop_uid,
+            ))
         if crit_slices:
             return ArtifactFinding(
                 self.detector_id,
@@ -314,6 +334,7 @@ class SlabDiscontinuityDetector(ArtifactDetector):
                 threshold,
                 crit_slices,
                 "Narušená návaznost řezů / multi-slab postprocessingový artefakt",
+                per_image=tuple(per_image),
             )
         if anomaly_slices:
             return ArtifactFinding(
@@ -325,6 +346,7 @@ class SlabDiscontinuityDetector(ArtifactDetector):
                 threshold,
                 anomaly_slices,
                 "Zjištěn skok intenzity mezi řezy",
+                per_image=tuple(per_image),
             )
         return ArtifactFinding(
             self.detector_id,
@@ -333,6 +355,7 @@ class SlabDiscontinuityDetector(ArtifactDetector):
             "slice_continuity_ok",
             max_jump,
             threshold,
+            per_image=tuple(per_image),
         )
 
 

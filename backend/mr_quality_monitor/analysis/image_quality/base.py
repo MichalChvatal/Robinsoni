@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from array import array
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 Status = Literal["GREEN", "ORANGE", "RED", "GRAY"]
@@ -32,6 +32,8 @@ class ArtifactFinding:
     threshold: dict
     affected_slices: tuple[int, ...] = ()
     action: str = ""
+    sop_uid: str | None = None
+    per_image: tuple["ArtifactFinding", ...] = ()
 
 
 class ArtifactDetector(ABC):
@@ -76,4 +78,16 @@ class DetectorRegistry:
             if enabled_detectors
             else list(self._detectors.values())
         )
-        return tuple(detector.detect(slices, role=role) for detector in selected)
+        findings = []
+        for detector in selected:
+            finding = detector.detect(slices, role=role)
+            if slices and not finding.per_image:
+                finding = replace(
+                    finding,
+                    per_image=tuple(
+                        replace(detector.detect((image,), role=role), sop_uid=image.sop_uid)
+                        for image in slices
+                    ),
+                )
+            findings.append(finding)
+        return tuple(findings)

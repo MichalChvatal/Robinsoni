@@ -53,6 +53,7 @@ class CheckResult:
     frame_index: int | None = None
     paths: tuple[str, ...] = ()
     action: str = ""
+    per_image: tuple["CheckResult", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,6 +200,15 @@ def evaluate(
                         finding.threshold,
                         paths=tuple(f"slice[{idx}]" for idx in finding.affected_slices),
                         action=finding.action if finding.status != "GREEN" else "",
+                        per_image=tuple(
+                            CheckResult(
+                                f"image:{detail.detector_id}", detail.artifact_type,
+                                detail.status, detail.reason, detail.score, detail.threshold,
+                                sop_uid=detail.sop_uid,
+                                action=detail.action if detail.status != "GREEN" else "",
+                            )
+                            for detail in finding.per_image
+                        ),
                     )
                 )
             if image_findings:

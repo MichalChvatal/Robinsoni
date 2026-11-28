@@ -405,6 +405,78 @@ def test_requirements_group_common_values_and_keep_image_exceptions(app, gui_dem
     assert "1.2.10" in table.item(2, 1).text()
 
 
+def test_image_findings_are_per_image_after_processing_and_finalization(
+    app, tmp_path, image, protocol_data,
+):
+    from array import array
+
+    from mr_quality_monitor.protocols.manager import ProtocolSnapshot
+    from mr_quality_monitor.protocols.models import Protocol
+
+    protocol_data.update(schema_version=2, mode="CLINICAL", approved_by="Software tests")
+    protocol_data["study_identifiers"] = [
+        {"field": "StudyDescription", "constraint": {"kind": "exact", "value": "Image test"}}
+    ]
+    protocol_data["sequences"][0]["image_required"] = True
+    protocol = ProtocolSnapshot.create(Protocol.model_validate(protocol_data))
+    image.StudyDescription, image.SeriesDescription = "Image test", "t2"
+    image.Rows = image.Columns = 32
+    image.PixelData = array("H", (
+        100 if 8 <= r < 24 and 8 <= c < 24 else 0
+        for r in range(32) for c in range(32)
+    )).tobytes()
+    image.RepetitionTime, image.EchoTime = 4000, 100
+    image.PixelSpacing, image.SliceThickness = [0.5, 0.5], 3
+    image.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+    storage = Storage(tmp_path, 0)
+    try:
+        uids = set()
+        for position in (0, 3, 6):
+            member = deepcopy(image)
+            member.SOPInstanceUID = generate_uid()
+            uids.add(str(member.SOPInstanceUID))
+            member.InstanceNumber = position // 3 + 1
+            member.ImagePositionPatient = [0, 0, position]
+            storage.receive(member, str(member.file_meta.TransferSyntaxUID), "MR_TEST", "127.0.0.1")
+        with open_worker(tmp_path, protocol) as worker:
+            assert worker.run_once(Event()) == 0
+            reader = MonitorReader(tmp_path)
+            view = reader.read()
+            detail_module = importlib.import_module("mr_quality_monitor.gui.sequence_detail")
+            detail = detail_module.SequenceDetail()
+
+            def verify(snapshot):
+                assert not snapshot.stale and snapshot.pending == 0
+                row = snapshot.rows[0]
+                detail.show_row(row)
+                for field in ("low_snr", "slab_discontinuity", "motion_ghosting"):
+                    parent = next(
+                        check for check in row.evaluations[0]["checks"] if check["field"] == field
+                    )
+                    assert {check["sop_uid"] for check in parent["per_image"]} == uids
+                    indices = [
+                        index for index in range(detail.checks.rowCount())
+                        if detail.checks.item(index, 0).text() == field
+                    ]
+                    assert len(indices) == 3
+                    assert all(
+                        "Snímek" in detail.checks.item(index, 1).text() for index in indices
+                    )
+                    assert len({
+                        detail.checks.item(index, 1).toolTip() for index in indices
+                    }) == 3
+                assert sum(
+                    detail.checks.item(index, 0).text() == "RepetitionTime"
+                    for index in range(detail.checks.rowCount())
+                ) == 1
+
+            verify(view)
+            worker.history.finalize_current(view.study_uid, view.branch_id, actor="test")
+            verify(reader.read())
+    finally:
+        storage.close()
+
+
 def test_late_response_for_old_selection_is_discarded(app, gui_demo):
     original = MonitorReader(gui_demo.root).read()
     studies = (*original.studies, {"study_uid": "1.2.99", "last_seen": "now"})
