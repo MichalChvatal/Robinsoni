@@ -1,6 +1,5 @@
 """Deterministic MR artifact detectors (motion/ghosting, low SNR, slab discontinuity)."""
 
-import math
 import statistics
 
 from .base import ArtifactDetector, ArtifactFinding, DetectorRegistry, SlicePixels
@@ -62,7 +61,9 @@ class LowSNRDetector(ArtifactDetector):
         self.min_snr_ok = min_snr_ok
         self.min_snr_warn = min_snr_warn
 
-    def detect(self, slices: tuple[SlicePixels, ...], *, role: str | None = None) -> ArtifactFinding:
+    def detect(  # noqa: D102
+        self, slices: tuple[SlicePixels, ...], *, role: str | None = None
+    ) -> ArtifactFinding:
         if not slices:
             return ArtifactFinding(
                 self.detector_id,
@@ -164,7 +165,9 @@ class MotionGhostingDetector(ArtifactDetector):
         self.max_ghost_ok = max_ghost_ok
         self.max_ghost_crit = max_ghost_crit
 
-    def detect(self, slices: tuple[SlicePixels, ...], *, role: str | None = None) -> ArtifactFinding:
+    def detect(  # noqa: D102
+        self, slices: tuple[SlicePixels, ...], *, role: str | None = None
+    ) -> ArtifactFinding:
         if not slices:
             return ArtifactFinding(
                 self.detector_id,
@@ -268,7 +271,9 @@ class SlabDiscontinuityDetector(ArtifactDetector):
         self.max_jump_ok = max_jump_ok
         self.max_jump_crit = max_jump_crit
 
-    def detect(self, slices: tuple[SlicePixels, ...], *, role: str | None = None) -> ArtifactFinding:
+    def detect(  # noqa: D102
+        self, slices: tuple[SlicePixels, ...], *, role: str | None = None
+    ) -> ArtifactFinding:
         if len(slices) < 3:
             return ArtifactFinding(
                 self.detector_id,

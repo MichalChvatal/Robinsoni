@@ -221,7 +221,9 @@ class Protocol(FrozenModel):
     def unique_definitions(self):
         if self.schema_version == 1 and self.mode != "DEMO":
             raise ValueError("schema_version 1 supports only DEMO mode")
-        if self.schema_version == 1 and (self.approved_by is not None or self.study_rules is not None):
+        if self.schema_version == 1 and (
+            self.approved_by is not None or self.study_rules is not None
+        ):
             raise ValueError("Clinical fields require schema_version 2")
         if self.mode == "CLINICAL" and not (self.approved_by and self.approved_by.strip()):
             raise ValueError("CLINICAL protocol requires approved_by")

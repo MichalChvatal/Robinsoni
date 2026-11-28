@@ -329,5 +329,18 @@ class Storage:
                 raise RuntimeError("Committed DICOM storage is missing or corrupt")
         return counts
 
+    def series_paths(self, series_uid: str) -> list[Path]:
+        """Return stored object paths for all instances in a series."""
+        with self.sessions() as session:
+            instances = list(
+                session.scalars(
+                    select(DicomInstance).where(
+                        DicomInstance.series_uid == series_uid,
+                        DicomInstance.integrity_state == "stored",
+                    )
+                )
+            )
+        return [self.path(instance.id) for instance in instances]
+
     def close(self) -> None:
         self.engine.dispose()
