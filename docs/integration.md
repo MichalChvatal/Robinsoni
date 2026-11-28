@@ -44,7 +44,7 @@ Z kořene repozitáře spusťte každý příkaz v samostatném terminálu.
 
 ```powershell
 .\.venv\Scripts\python.exe -m mr_quality_monitor.cli --config config/app_config.yaml
-.\.venv\Scripts\python.exe -m mr_quality_monitor.worker_cli --config config/app_config.yaml --protocol config/protocols/demo_mr.yaml
+.\.venv\Scripts\python.exe -m mr_quality_monitor.worker_cli --config config/app_config.yaml --protocol config/protocols/prostate_mou.yaml
 .\.venv\Scripts\python.exe -m mr_quality_monitor.gui --config config/app_config.yaml
 ```
 

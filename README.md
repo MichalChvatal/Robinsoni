@@ -1,5 +1,10 @@
 # Robinsoni
 
+Výchozí spouštění používá validační protokol **PROSTATE_MOU** ze souboru
+`config/protocols/prostate_mou.yaml`. Po aktualizaci ukončete analýzu přes
+**Zastavit prijem.cmd** a znovu spusťte **Spustit aplikaci.cmd**. Nová vyšetření
+se vyhodnotí tímto protokolem; již uložená vyšetření si zachovají původní verzi.
+
 Lokální MR Quality Monitor — postupná implementace podle `prompt.md`.
 
 ## Rychlé spuštění ve Windows

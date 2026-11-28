@@ -67,7 +67,7 @@ except (ImportError, OSError):
     }
     $setupLock.Dispose()
     $setupLock = $null
-    $launchArgs = @('-X', 'utf8', '-m', 'mr_quality_monitor.launcher', $Action, '--config', $Config, '--protocol', 'config/protocols/demo_mr.yaml')
+    $launchArgs = @('-X', 'utf8', '-m', 'mr_quality_monitor.launcher', $Action, '--config', $Config, '--protocol', 'config/protocols/prostate_mou.yaml')
     if ($NoWindow) { $launchArgs += '--no-window' }
     if ($Action -ne 'stop') { Write-Host 'Spoustim prijem a analyzu...' }
     & $appPython @launchArgs

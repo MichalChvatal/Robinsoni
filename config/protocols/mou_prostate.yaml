@@ -1,0 +1,95 @@
+schema_version: 1
+protocol_id: MOU_PROSTATE
+version: 1.0-demo
+mode: DEMO
+display_name: Technická kontrola MRI prostaty MOÚ
+author: MR Quality Monitor
+source: pozadavky_na_kontrolu.md
+prostate_checks:
+  private_b_values:
+    - {tag: "0019100C", creator: SIEMENS MR HEADER, model: MAGNETOM Vida, software_version: syngo MR XA60, vr: IS}
+    - {tag: "00211105", creator: SIEMENS MR SDI 02, model: MAGNETOM Vida, software_version: syngo MR XA60, vr: IS}
+  position_tolerance_mm: null
+  orientation_tolerance_degrees: null
+  resolve_identities: []
+sequences:
+  - sequence_id: T2_SAG
+    display_name: T2W · sagitální
+    order: 1
+    required: false
+    image_required: false
+    identifiers:
+      - &mr {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: ProtocolName, constraint: {kind: exact, value: t2_tse_sag_DRB}}
+      - {field: SequenceName, constraint: {kind: exact, value: "*tse2d1_17"}}
+    parameters: &t2
+      - {rule_id: slice_thickness, field: SliceThickness, unit: mm, constraint: {kind: limit, bound: maximum, value: 3}, action: Ověřte tloušťku řezu podle protokolu.}
+      - &slice_gap {rule_id: slice_gap, field: SliceGap, unit: mm, constraint: {kind: exact, value: 0}, action: Ověřte mezeru mezi řezy podle protokolu.}
+      - {rule_id: fov, field: FieldOfView, unit: mm, components: all, constraint: {kind: range, minimum: 120, maximum: 200}, action: Ověřte velikost zobrazeného pole podle protokolu.}
+      - {rule_id: phase_resolution, field: PhaseResolution, unit: mm, constraint: {kind: limit, bound: maximum, value: 0.7}, action: Ověřte rozlišení ve směru fáze.}
+      - {rule_id: frequency_resolution, field: FrequencyResolution, unit: mm, constraint: {kind: limit, bound: maximum, value: 0.7}, action: Ověřte rozlišení ve směru frekvence.}
+  - sequence_id: T2_COR
+    display_name: T2W · koronální
+    order: 2
+    required: false
+    image_required: false
+    identifiers:
+      - *mr
+      - {field: ProtocolName, constraint: {kind: exact, value: t2_tse_cor}}
+      - &tse16 {field: SequenceName, constraint: {kind: exact, value: "*tse2d1_16"}}
+    parameters: *t2
+  - sequence_id: T2_TRA
+    display_name: T2W · axiální
+    order: 3
+    required: false
+    image_required: false
+    identifiers:
+      - *mr
+      - {field: ProtocolName, constraint: {kind: exact, value: t2_tse_tra}}
+      - *tse16
+    parameters: *t2
+  - sequence_id: DWI_LOW
+    display_name: DWI · nízká b-hodnota
+    order: 4
+    image_required: false
+    identifiers:
+      - *mr
+      - &dwi {field: ProtocolName, constraint: {kind: exact, value: ep2d_diff_zoomit_b50_800_tra_DRB}}
+      - {field: SequenceName, constraint: {kind: exact, value: "*ez_b50t"}}
+    parameters:
+      - &dwi_thickness {rule_id: slice_thickness, field: SliceThickness, unit: mm, constraint: {kind: limit, bound: maximum, value: 4}, action: Ověřte tloušťku řezu podle protokolu.}
+      - *slice_gap
+      - {rule_id: b_value, field: PrivateDiffusionBValue, unit: s/mm2, constraint: {kind: range, minimum: 0, maximum: 100}, action: Ověřte b-hodnotu v nastavení série.}
+  - sequence_id: DWI_INTERMEDIATE
+    display_name: DWI · střední b-hodnota
+    order: 5
+    image_required: false
+    identifiers:
+      - *mr
+      - *dwi
+      - {field: SequenceName, constraint: {kind: exact, value: "*ez_b800t"}}
+    parameters:
+      - *dwi_thickness
+      - *slice_gap
+      - {rule_id: b_value, field: PrivateDiffusionBValue, unit: s/mm2, constraint: {kind: range, minimum: 800, maximum: 1000}, action: Ověřte b-hodnotu v nastavení série.}
+  - sequence_id: DWI_HIGH
+    display_name: DWI · vysoká b-hodnota
+    order: 6
+    image_required: false
+    identifiers:
+      - *mr
+      - *dwi
+      - {field: SequenceName, constraint: {kind: exact, value: "*ez_calc_b2000"}}
+    parameters:
+      - *dwi_thickness
+      - *slice_gap
+      - {rule_id: b_value, field: PrivateDiffusionBValue, unit: s/mm2, constraint: {kind: limit, bound: minimum, value: 1400}, action: Ověřte b-hodnotu v nastavení série.}
+  - sequence_id: DWI_ADC
+    display_name: DWI · mapa ADC
+    order: 7
+    image_required: false
+    identifiers:
+      - *mr
+      - *dwi
+      - {field: SequenceName, constraint: {kind: exact, value: "*ez_b50_800"}}
+    parameters: [*dwi_thickness, *slice_gap]

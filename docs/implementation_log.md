@@ -395,3 +395,15 @@ metadat, enginu a historie, kompletní workflow a lokální spuštění komponen
   Přijímač po restartu správně rozpoznal duplicitní přenos.
 - Lokální spuštění a obnova jsou popsány v [návodu k integraci](integration.md).
   Automatická kontrola používá DEMO protokol a neuzavírá vyšetření.
+
+## 2026-11-28 - výchozí protokol PROSTATE_MOU
+
+- Windows spouštění pro start i odesílání předává analytickému procesu
+  `config/protocols/prostate_mou.yaml` místo `demo_mr.yaml`.
+- README a příkaz pro ruční spuštění analýzy odpovídají protokolu PROSTATE_MOU.
+- Změna vyžaduje zastavení a nové spuštění analýzy. Nová vyšetření dostanou
+  PROSTATE_MOU; existující vyšetření zachovají uložený protokol a historii.
+- Prošla kontrola PowerShell AST, argumentu --protocol, existence souboru,
+  identifikátoru PROSTATE_MOU a git diff --check.
+- Běhové ověření načtení YAML ani Python testy neproběhly: .venv/Scripts/python.exe
+  odkazuje na nepřístupnou instalaci Pythonu z WindowsApps.
