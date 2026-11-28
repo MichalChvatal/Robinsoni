@@ -216,6 +216,19 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
     try:
         wait_for(app, lambda: window.snapshot is not None)
         assert window.sequence_table.rowCount() == 4
+        geometry = window.geometry()
+        snapshot = window.snapshot
+        assert window.always_on_top.text() == ""
+        assert not window.always_on_top.icon().isNull()
+        assert window.always_on_top.accessibleName() == "Vždy navrchu"
+        for enabled in (True, False):
+            window.always_on_top.click()
+            app.processEvents()
+            assert bool(window.windowFlags() & QtCore.Qt.WindowType.WindowStaysOnTopHint) == enabled
+            assert window.always_on_top.isChecked() == enabled
+            assert ("Odepnout" if enabled else "Připnout") in window.always_on_top.toolTip()
+            assert window.isVisible() and window.geometry() == geometry
+            assert window.snapshot is snapshot
         assert window.sequence_table.columnCount() == 1
         assert [
             window.sequence_table.horizontalHeaderItem(index).text() for index in range(1)

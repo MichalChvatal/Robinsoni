@@ -2,8 +2,18 @@
 
 import logging
 
-from PySide6.QtCore import QObject, QSignalBlocker, Qt, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QColor
+from PySide6.QtCore import (
+    QObject,
+    QPointF,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -45,6 +55,30 @@ from .sequence_detail import (
 from .view_data import MonitorReader
 
 LOG = logging.getLogger(__name__)
+
+
+def pin_icon(enabled):
+    pixmap = QPixmap(48, 48)
+    pixmap.setDevicePixelRatio(2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.translate(12, 12)
+    painter.rotate(0 if enabled else 35)
+    painter.translate(-12, -12)
+    color = QColor("#536173")
+    painter.setPen(QPen(color, 1.5))
+    painter.setBrush(color if enabled else Qt.BrushStyle.NoBrush)
+    outline = QPolygonF([
+        QPointF(x, y) for x, y in (
+            (7, 3), (17, 3), (17, 6), (15, 6), (15, 12), (18, 15),
+            (18, 17), (6, 17), (6, 15), (9, 12), (9, 6), (7, 6),
+        )
+    ])
+    painter.drawPolygon(outline)
+    painter.drawLine(12, 17, 12, 22)
+    painter.end()
+    return QIcon(pixmap)
 
 
 def label(text="", name=""):
@@ -139,6 +173,21 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         heading.addWidget(label("MR.BUDDY", "title"))
         heading.addStretch()
+        self.always_on_top = QPushButton()
+        self.always_on_top.setObjectName("pinButton")
+        self.always_on_top.setIcon(pin_icon(False))
+        self.always_on_top.setIconSize(QSize(24, 24))
+        self.always_on_top.setFixedSize(38, 36)
+        self.always_on_top.setAccessibleName("Vždy navrchu")
+        self.always_on_top.setStyleSheet(
+            "QPushButton#pinButton { padding: 4px; }"
+            "QPushButton#pinButton:checked { background: white; border-color: #c9d3e1; }"
+            "QPushButton#pinButton:hover { background: #f1f2f4; }"
+        )
+        self.always_on_top.setCheckable(True)
+        self.always_on_top.setToolTip("Připnout MR.BUDDY nad ostatní okna.")
+        self.always_on_top.toggled.connect(self._set_always_on_top)
+        heading.addWidget(self.always_on_top)
         if not self.config.single_active_study:
             heading.addWidget(label("DEMO · metadata", "demoBadge"))
         outer.addLayout(heading)
@@ -477,6 +526,20 @@ class MainWindow(QMainWindow):
                 "Počkejte na dokončení analýzy všech přijatých snímků a zkuste to znovu.",
             )
         self.refresh()
+
+    def _set_always_on_top(self, enabled):
+        self.always_on_top.setIcon(pin_icon(enabled))
+        self.always_on_top.setToolTip(
+            "Odepnout MR.BUDDY." if enabled else "Připnout MR.BUDDY nad ostatní okna."
+        )
+        geometry = self.geometry()
+        state = self.windowState()
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, enabled)
+        self.show()
+        self.setGeometry(geometry)
+        self.setWindowState(state)
+        self.raise_()
+        self.activateWindow()
 
     def _row_stale(self, row):
         if self.snapshot.completion is not None and not self.read_failed:
