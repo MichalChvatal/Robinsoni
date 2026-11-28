@@ -106,8 +106,8 @@ class MetadataRecord:
     vendor_parser: str = "generic/1"
 
     def known(self, name: str) -> Value:
-        value = self.fields[name]
-        return value.value if value.state == "known" else None
+        value = self.fields.get(name)
+        return value.value if value is not None and value.state == "known" else None
 
     def to_dict(self) -> dict:
         """JSON-compatible snapshot; never use this return value in operational logs."""

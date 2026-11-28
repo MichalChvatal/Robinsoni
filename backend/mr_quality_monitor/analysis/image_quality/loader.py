@@ -59,6 +59,10 @@ def load_slice_pixels(
     slice_position_mm: float | None = None,
 ) -> SlicePixels | None:
     dataset = dcmread(path, stop_before_pixels=False)
+    if dataset.file_meta.TransferSyntaxUID.is_compressed:
+        return None
+    if int(getattr(dataset, "NumberOfFrames", 1)) != 1:
+        return None
     return decode_dataset_pixels(
         dataset,
         phase_direction=phase_direction,

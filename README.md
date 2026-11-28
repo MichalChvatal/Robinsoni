@@ -1,5 +1,10 @@
 # Robinsoni
 
+Výchozí spouštění používá validační protokol **PROSTATE_MOU** ze souboru
+`config/protocols/prostate_mou.yaml`. Po aktualizaci ukončete analýzu přes
+**Zastavit prijem.cmd** a znovu spusťte **Spustit aplikaci.cmd**. Nová vyšetření
+se vyhodnotí tímto protokolem; již uložená vyšetření si zachovají původní verzi.
+
 Lokální MR Quality Monitor — postupná implementace podle `prompt.md`.
 
 ## Rychlé spuštění ve Windows
@@ -23,6 +28,7 @@ stáhne nebo použije připravené instalační balíčky v adresáři `wheels`.
 - [Integrované lokální spuštění](docs/integration.md)
 - [Popis dodaných testovacích dat](data/README.md)
 
-V lokálním režimu DEMO běží DICOM příjem, automatická analýza metadat a jednookenní
-GUI jako samostatné procesy. Klinické hodnocení PI-QUAL a analýza pixelů zatím
-nejsou k dispozici.
+DICOM příjem, automatická analýza a GUI běží jako samostatné procesy.
+`PROSTATE_MOU` hodnotí metadata a u určených sekvencí také obrazové artefakty
+v podporovaných MR snímcích. Po dokončení příjmu lze vyšetření ručně uzavřít
+v podrobnostech vyšetření. Hodnocení PI-QUAL aplikace zatím neposkytuje.

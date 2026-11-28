@@ -208,7 +208,7 @@ class MotionGhostingDetector(ArtifactDetector):
                 ghost_ratio = max(0.0, col_energy - 0.5 * row_energy)
             else:
                 ghost_ratio = abs(row_energy - col_energy)
-            # Also account for high corner noise relative to foreground if ghosting wraps all the way.
+            # Account for high corner noise relative to the foreground if ghosting wraps around.
             if bg_std / scale > 0.18:
                 ghost_ratio = max(ghost_ratio, bg_std / scale)
             scores.append((idx, ghost_ratio))

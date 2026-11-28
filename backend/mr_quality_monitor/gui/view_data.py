@@ -22,6 +22,7 @@ class MonitorRow:
     reason: str = ""
     action: str = ""
     requirements: tuple[dict, ...] = ()
+    checks: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ class MonitorSnapshot:
     pending: int
     health: dict
     message: str = ""
+    can_finalize: bool = False
+    study_rows: tuple[MonitorRow, ...] = ()
 
 
 def known(record: dict, name: str):
@@ -58,17 +61,30 @@ def measured(records: tuple[dict, ...], field: str) -> str:
     return text + (" *" if None in values else "")
 
 
-def empty_snapshot(health: dict, message: str) -> MonitorSnapshot:
+def empty_snapshot(health: dict, message: str, protocol=None) -> MonitorSnapshot:
+    waiting = tuple(
+        MonitorRow(
+            "seq:" + seq["sequence_id"],
+            str(seq["order"]),
+            seq["display_name"],
+            "GRAY",
+            reason="required_sequence_pending",
+        )
+        for seq in sorted((protocol or {}).get("sequences", ()), key=lambda seq: seq["order"])
+    )
     return MonitorSnapshot(
-        (), None, (), None, (), (), "—", "—", "—", "—", "GRAY", True, 0, 0, health, message
+        (), None, (), None, waiting, (), "—", "—", "—", "—", "GRAY", True, 0, 0, health, message
     )
 
 
 class MonitorReader:
     """Never creates a database or runs migrations. Connections live for one read only."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, intake_protocol=None):
         self.root = root
+        self.intake_protocol = (
+            intake_protocol if (intake_protocol or {}).get("prostate_checks") else None
+        )
         self._cache_key = None
         self._cache = None
 
@@ -78,7 +94,9 @@ class MonitorReader:
         if not path.is_file():
             if study_uid is not None:
                 raise OSError("Selected study storage is unavailable")
-            return empty_snapshot(health, "Čeká na data — spusťte samostatný přijímač.")
+            return empty_snapshot(
+                health, "Čeká na data — spusťte samostatný přijímač.", self.intake_protocol
+            )
         connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
         connection.row_factory = sqlite3.Row
         try:
@@ -107,7 +125,9 @@ class MonitorReader:
         if not studies:
             if selected is not None:
                 raise ValueError("Selected study is no longer available")
-            return empty_snapshot(health, "Zatím nebylo přijato žádné vyšetření.")
+            return empty_snapshot(
+                health, "Zatím nebylo přijato žádné vyšetření.", self.intake_protocol
+            )
         if selected is None:
             selected = studies[0]["study_uid"]
         elif selected not in {item["study_uid"] for item in studies}:
@@ -152,7 +172,7 @@ class MonitorReader:
             "WHERE s.study_uid=?",
             (selected,),
         ).fetchone()
-        protocol = None
+        protocol = self.intake_protocol
         run = None
         if branch:
             protocol_row = db.execute(
@@ -168,6 +188,11 @@ class MonitorReader:
         stale = run is None or run["study_revision"] != study["revision"] or pending > 0
         payload, group_records = self._run_data(db, run)
         rows = self._rows(db, selected, protocol, payload, group_records)
+        study_rows = tuple(row for row in rows if row.key.startswith("study:"))
+        rows = tuple(row for row in rows if not row.key.startswith("study:"))
+        if protocol and protocol.get("prostate_checks"):
+            study_rows += tuple(row for row in rows if not row.key.startswith("seq:"))
+            rows = tuple(row for row in rows if row.key.startswith("seq:"))
         history = self._history(db, branch["id"]) if branch else ()
         records = tuple(record for members in group_records.values() for record in members)
         date = next(
@@ -196,6 +221,10 @@ class MonitorReader:
             message = f"Analýza selhala u {failed} MR objektů. Zkontrolujte lokální úložiště."
         elif stale:
             message = "Čeká na zpracování nebo přehodnocení dat."
+        elif payload.get("finalized") and protocol and (
+            protocol.get("prostate_checks") or protocol.get("study_rules")
+        ):
+            message = "Vyšetření bylo uzavřeno."
         return MonitorSnapshot(
             tuple(studies),
             selected,
@@ -215,6 +244,15 @@ class MonitorReader:
             pending,
             health,
             message,
+            bool(
+                protocol
+                and (protocol.get("prostate_checks") or protocol.get("study_rules"))
+                and branch
+                and branch["label"] == "main"
+                and not stale
+                and not payload.get("finalized")
+            ),
+            study_rows,
         )
 
     def _run_data(self, db, run):
@@ -307,7 +345,7 @@ class MonitorReader:
                     requirements=tuple(definition["parameters"]),
                 )
             )
-            if len(matched) > 1:
+            if len(matched) > 1 and not protocol.get("prostate_checks"):
                 for index, value in enumerate(matched, 1):
                     members = records_by_group.get(value["group_key"], ())
                     name = known(members[0], "SeriesDescription") if members else None
@@ -341,6 +379,40 @@ class MonitorReader:
                         "Ověřit zařazení sekvence",
                     )
                 )
+        study_names = {
+            "t2_planes": "T2W · počet vyhovujících rovin",
+            "axial_t2": "T2W · přítomnost axiální roviny",
+            "dwi_set": "DWI · stav celé sady",
+            "resolve_presence": "DWI · prověření RESOLVE",
+        }
+        for check in payload.get("checks", ()):
+            rows.append(
+                MonitorRow(
+                    "study:" + check["rule_id"],
+                    "—",
+                    study_names[check["rule_id"]],
+                    check["status"],
+                    reason=check["reason"],
+                    checks=(check,),
+                )
+            )
+        clinical_study_names = {
+            "min_valid_group": "Minimální počet vyhovujících sekvencí",
+            "fallback_group": "Kontrola náhradní sekvence",
+            "geometry_alignment": "Geometrická shoda sekvencí",
+            "anatomical_coverage": "Anatomické pokrytí",
+        }
+        for check in payload.get("study_checks", ()):
+            rows.append(
+                MonitorRow(
+                    "study:" + check["rule_id"],
+                    "-",
+                    clinical_study_names.get(check["kind"], check["rule_id"]),
+                    check["status"],
+                    reason=check["reason"],
+                    action=check["action"],
+                )
+            )
         indexed = {
             known(record, "SOPInstanceUID")
             for records in records_by_group.values()

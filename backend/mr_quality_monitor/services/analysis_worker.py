@@ -11,7 +11,9 @@ from pydicom.uid import MRImageStorage
 from sqlalchemy import func, select, update
 
 from ..analysis.image_quality import default_registry, load_slice_pixels
+from ..analysis.image_quality.base import ArtifactFinding
 from ..analysis.metadata_normalizer import MetadataRecord
+from ..analysis.sequence_identifier import identify
 from ..analysis.series_aggregator import group_acquisitions
 from ..config import ReceiverConfig
 from ..database.models import AnalysisJob, DicomInstance, Study, SystemEvent
@@ -102,6 +104,8 @@ class AnalysisWorker:
                 )
             )
             study_exists = session.get(Study, study_uid) is not None
+        snapshot = self.history.get_protocol(study_uid) if study_exists else self.protocol
+        profile = snapshot.protocol.prostate_checks
 
         records = []
         completed = []
@@ -113,7 +117,7 @@ class AnalysisWorker:
                 self._set_job_state(job.id, "ignored")
                 continue
             try:
-                records.extend(self._read(instance))
+                records.extend(self._read(instance, profile))
             except (InvalidDicomError, ValueError, TypeError, EOFError, FileNotFoundError):
                 self._set_job_state(job.id, "failed", instance.id)
                 failures += 1
@@ -124,26 +128,45 @@ class AnalysisWorker:
             return failures
 
         if not study_exists:
-            self.history.begin_study(study_uid, self.protocol, actor=ACTOR)
+            self.history.begin_study(study_uid, snapshot, actor=ACTOR)
         groups = group_acquisitions(tuple(records))
 
-        # Build sop_uid → storage path map for pixel loading
         sop_to_id = {instance.sop_uid: instance.id for instance, _ in inputs}
-        image_findings: dict[str, tuple] = {}
+        image_findings: dict[str, tuple[ArtifactFinding, ...]] = {}
         registry = default_registry()
+        definitions = {
+            definition.sequence_id: definition for definition in snapshot.protocol.sequences
+        }
         for group in groups:
+            if stopped.is_set():
+                return failures
+            sequence = definitions.get(identify(group, snapshot.protocol).sequence_id)
+            if sequence is None or not sequence.image_required:
+                continue
             try:
                 slices = tuple(
                     sl
-                    for record in group.members
+                    for index, record in enumerate(group.members)
                     for sop_uid in [record.known("SOPInstanceUID")]
                     if sop_uid and sop_uid in sop_to_id
-                    and (sl := load_slice_pixels(self.storage.path(sop_to_id[sop_uid]))) is not None
+                    and (
+                        sl := load_slice_pixels(
+                            self.storage.path(sop_to_id[sop_uid]),
+                            phase_direction=record.known("InPlanePhaseEncodingDirection"),
+                            slice_position_mm=(
+                                group.projected_positions_mm[index]
+                                if len(group.projected_positions_mm) == len(group.members)
+                                else None
+                            ),
+                        )
+                    ) is not None
                 )
-                if slices:
-                    image_findings[group.key] = registry.evaluate(slices)
-            except Exception:  # noqa: BLE001
-                pass  # pixel failure must never block metadata result
+                if slices and len(slices) == len(group.members):
+                    image_findings[group.key] = registry.evaluate(
+                        slices, role=sequence.role, enabled_detectors=sequence.image_checks
+                    )
+            except Exception as error:
+                LOGGER.warning("image_analysis_skipped type=%s", type(error).__name__)
 
         self.history.save_evaluation(
             study_uid,
@@ -155,11 +178,11 @@ class AnalysisWorker:
         )
         return failures
 
-    def _read(self, instance: DicomInstance) -> tuple[MetadataRecord, ...]:
+    def _read(self, instance: DicomInstance, profile=None) -> tuple[MetadataRecord, ...]:
         path = self.storage.path(instance.id)
         if instance.integrity_state != "stored" or checksum(path) != instance.checksum:
             raise InvalidAnalysisInput("Stored object failed integrity check")
-        records = parse_file(path, b_value_tags=self.b_value_tags or None)
+        records = parse_file(path, b_value_tags=self.b_value_tags or None, prostate_checks=profile)
         expected = (
             instance.sop_uid,
             instance.study_uid,

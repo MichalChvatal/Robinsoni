@@ -54,6 +54,21 @@ REASONS = {
     "study_rule_passed": "Pravidlo celého vyšetření splněno",
     "study_rule_failed": "Pravidlo celého vyšetření nesplněno",
     "missing_slice_positions": "Chybí informace o poloze řezů pro geometrické ověření",
+    "alignment_axial_unavailable": "Chybí jednoznačná axiální T2W série pro porovnání",
+    "alignment_reference_unknown": "Série nemají ověřený společný souřadný systém",
+    "alignment_geometry_unknown": "Chybí spolehlivé údaje o poloze nebo orientaci řezů",
+    "alignment_no_overlap": "Rozsahy řezů DWI a axiální T2W se nepřekrývají",
+    "alignment_measured": "Geometrické porovnání s axiální T2W",
+    "alignment_outside_tolerance": "Geometrická odchylka od axiální T2W je mimo toleranci",
+    "t2_plane_count": "Požadovány jsou dvě vyhovující T2W roviny",
+    "t2_axial_present": "Axiální T2W je přítomná",
+    "t2_axial_missing": "Axiální T2W chybí",
+    "dwi_set_status": "Technická kontrola čtyř částí DWI sady",
+    "dwi_resolve_required": "DWI sada nevyhovuje. Prověřte odpovídající RESOLVE sérii",
+    "resolve_identity_unknown": "Identifikace odpovídající RESOLVE série není nastavená",
+    "resolve_present_unverified": "RESOLVE byla nalezena. Její použitelnost čeká na ověření",
+    "resolve_missing": "Po uzavření vyšetření chybí odpovídající RESOLVE série",
+    "resolve_pending": "Čeká se na odpovídající RESOLVE sérii",
 }
 
 
@@ -73,6 +88,8 @@ def requirement_text(rule: dict) -> str:
     constraint = rule.get("constraint", {})
     kind = constraint.get("kind")
     unit = " " + rule["unit"] if rule.get("unit") else ""
+    if kind == "limit":
+        return plain_requirement(rule)
     if kind == "exact":
         return "= " + display_value(constraint["value"]) + unit
     if kind == "one_of":
@@ -116,6 +133,16 @@ PARAMETER_NAMES = {
     "NumberOfAverages": "Počet opakování pro průměrování",
     "EchoTrainLength": "Počet ech v sérii",
     "PixelBandwidth": "Šířka pásma na pixel",
+    "PrivateDiffusionBValue": "Skutečná b-hodnota",
+    "SliceGap": "Mezera mezi řezy",
+    "FieldOfView": "Velikost zobrazeného pole (FOV)",
+    "PhaseResolution": "Rozlišení ve směru fáze",
+    "FrequencyResolution": "Rozlišení ve směru frekvence",
+    "DWIAlignment": "Shoda DWI a axiální T2W",
+    "T2PlaneCount": "Počet vyhovujících T2W rovin",
+    "T2Axial": "Přítomnost axiální T2W",
+    "DWISet": "Sada DWI",
+    "ResolvePresence": "Přítomnost RESOLVE",
 }
 GEOMETRY_NAMES = {
     "incomplete_geometry": "chybí údaje o poloze nebo rozměrech řezů",
@@ -148,6 +175,9 @@ def plain_requirement(rule: dict) -> str:
     constraint = rule.get("constraint") or {}
     kind = constraint.get("kind")
     unit = f" {rule['unit']}" if rule.get("unit") else ""
+    if kind == "limit":
+        qualifier = "nejvýše" if constraint["bound"] == "maximum" else "nejméně"
+        return f"{qualifier} {plain_value(constraint['value'])}{unit}"
     if kind == "range":
         return (
             f"hodnotu od {plain_value(constraint['minimum'])} "
@@ -175,6 +205,53 @@ def critical_description(check: dict) -> str:
     name = PARAMETER_NAMES.get(field, field or "Kontrolovaný údaj")
     reason = check.get("reason")
     actual = check.get("actual")
+    if field == "PrivateDiffusionBValue" and reason == "outside_requirement":
+        bounds = (check.get("expected") or {}).get("constraint", {})
+        if isinstance(actual, (int, float)):
+            for bound, phrase in (
+                ("maximum", "překročila povolené maximum"),
+                ("minimum", "je pod povoleným minimem"),
+            ):
+                limit = bounds.get(bound)
+                if bounds.get("bound") == bound:
+                    limit = bounds.get("value")
+                if limit is not None and (actual > limit if bound == "maximum" else actual < limit):
+                    return (
+                        f"B-hodnota {plain_value(actual)} s/mm² "
+                        f"{phrase} {plain_value(limit)} s/mm²."
+                    )
+    if field == "DWIAlignment":
+        message = REASONS.get(reason, name) + "."
+        expected = check.get("expected") or {}
+        if actual is not None:
+            position, spacing, angle = (plain_value(value) for value in actual)
+            message += (
+                f" Posun řezů {position} mm, rozdíl roztečí {spacing} mm,"
+                f" rozdíl orientace {angle}°."
+            )
+        if expected.get("position_tolerance_mm") is None or (
+            expected.get("orientation_tolerance_degrees") is None
+        ):
+            message += " Tolerance není schválená, výsledek shody nelze určit."
+        else:
+            message += (
+                f" Povolená odchylka je {plain_value(expected['position_tolerance_mm'])} mm"
+                f" a {plain_value(expected['orientation_tolerance_degrees'])}°."
+            )
+        return message
+    if field == "T2PlaneCount":
+        minimum = check["expected"]["minimum"]
+        message = f"Vyhovující T2W roviny: {actual} ze {minimum} požadovaných."
+        if check["status"] == "RED" and actual < minimum:
+            missing = minimum - actual
+            message += (
+                " Chybí jedna vyhovující rovina."
+                if missing == 1
+                else f" Chybějí {missing} vyhovující roviny."
+            )
+        return message
+    if field in {"T2Axial", "DWISet", "ResolvePresence"}:
+        return REASONS.get(reason, name) + "."
     if reason == "geometry_issues":
         findings = [GEOMETRY_NAMES[code] for code in (actual or ()) if code in GEOMETRY_NAMES]
         return (
@@ -202,11 +279,11 @@ def critical_description(check: dict) -> str:
     return message
 
 
-def critical_overview(row) -> str:
+def sequence_overview(row, statuses) -> str:
     findings = {}
-    for evaluation in row.evaluations:
+    for evaluation in (*row.evaluations, {"checks": row.checks}):
         for check in evaluation.get("checks", ()):
-            if check.get("status") != "RED":
+            if check.get("status") not in statuses:
                 continue
             message = critical_description(check)
             action = check.get("action") or ""
@@ -216,7 +293,19 @@ def critical_overview(row) -> str:
     if not findings:
         if row.reason == "required_sequence_absent_at_finalization":
             return "Při uzavření vyšetření chyběla tato povinná sekvence."
-        return "Konkrétní důvod v uloženém výsledku chybí."
+        if row.status == "RED":
+            return "Konkrétní důvod v uloženém výsledku chybí."
+        evidence = tuple(
+            dict.fromkeys(
+                reason
+                for evaluation in row.evaluations
+                for reason in evaluation.get("reasons", ())
+                if reason.startswith("completion_") or reason.startswith("sequence_")
+            )
+        )
+        if evidence:
+            return "\n".join(reason_text(reason) for reason in evidence)
+        return reason_text(row.reason)
     blocks = []
     for (message, action), affected in findings.items():
         if affected:
