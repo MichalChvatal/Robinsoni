@@ -22,10 +22,12 @@ from PySide6.QtWidgets import (
 from .presentation import (
     COLORS,
     STATUS_TEXT,
-    critical_overview,
+    critical_description,
     display_value,
+    effective_status,
     reason_text,
     requirement_text,
+    sequence_overview,
 )
 from .view_data import MonitorRow, known, measured
 
@@ -77,9 +79,8 @@ class SequenceDetail(QWidget):
         overview_content = QWidget()
         overview_layout = QVBoxLayout(overview_content)
         overview_layout.setContentsMargins(20, 16, 20, 16)
-        title = QLabel("Proč je sekvence červená?")
-        title.setStyleSheet("font-size: 16pt; font-weight: 700; color: #a02424;")
-        overview_layout.addWidget(title)
+        self.overview_title = QLabel()
+        overview_layout.addWidget(self.overview_title)
         self.explanation = QLabel()
         self.explanation.setTextFormat(Qt.TextFormat.PlainText)
         self.explanation.setWordWrap(True)
@@ -113,26 +114,68 @@ class SequenceDetail(QWidget):
         self.tabs.addTab(technical, "Požadavky a nálezy")
         self.tabs.addTab(self.metadata, "DICOM metadata")
         self.tabs.addTab(self.timeline, "Historie")
+        self.acquisitions = table(["Akvizice", "Stav", "Nálezy"])
+        self.tabs.addTab(self.acquisitions, "Jednotlivé akvizice")
         layout.addWidget(self.tabs)
         self.records = ()
         self.row_key = None
 
     def show_row(self, row: MonitorRow | None, history=(), stale=False, *, opening=False):
         row_key = row.key if row else None
-        critical = row is not None and row.status == "RED"
-        show_default = opening or row_key != self.row_key or self.tabs.isTabVisible(0) != critical
+        show_default = opening or row_key != self.row_key
         self.row_key = row_key
-        self.tabs.setTabVisible(0, critical)
         if show_default:
-            self.tabs.setCurrentIndex(0 if critical else 1)
-        explanation = critical_overview(row) if critical else ""
-        if critical and stale:
+            self.tabs.setCurrentIndex(0)
+        status = effective_status(row, stale) if row else "GRAY"
+        self.overview_title.setText(
+            "Proč je sekvence červená?" if status == "RED" else STATUS_TEXT[status]
+        )
+        self.overview_title.setStyleSheet(
+            f"font-size: 16pt; font-weight: 700; color: {COLORS[status][1]};"
+        )
+        statuses = {"GRAY", "ORANGE"} if status == "GRAY" else {status} - {"GREEN"}
+        explanation = sequence_overview(row, statuses) if row else ""
+        if row and status == "GREEN" and not row.checks:
+            explanation = "Sekvence splnila kontrolované technické požadavky."
+        if row and row.checks and status == "GREEN":
+            explanation = critical_description(row.checks[0])
+        if row:
+            alignment = [
+                critical_description(check)
+                for result in row.evaluations
+                for check in result.get("checks", ())
+                if check.get("field") == "DWIAlignment" and check.get("status") not in statuses
+            ]
+            if alignment:
+                explanation += "\n\n" + "\n".join(dict.fromkeys(alignment))
+            if any(result.get("protocol_id") == "MOU_PROSTATE" for result in row.evaluations):
+                explanation += "\n\nObrazová kvalita se touto technickou kontrolou nehodnotí."
+        if row and stale:
             explanation = "Zastaralý výsledek. Níže je poslední uložený nález.\n\n" + explanation
         self.explanation.setText(explanation)
         self.checks.setRowCount(0)
         self.metadata.clear()
         self.timeline.setRowCount(0)
         self.records = row.records if row else ()
+        repeats = [item for item in (row.evaluations if row else ()) if item.get("sequence_id")]
+        self.tabs.setTabVisible(self.tabs.indexOf(self.acquisitions), len(repeats) > 1)
+        self.acquisitions.setRowCount(len(repeats) if len(repeats) > 1 else 0)
+        if len(repeats) > 1:
+            for index, item in enumerate(repeats):
+                status = "GRAY" if stale and item["status"] != "RED" else item["status"]
+                findings = dict.fromkeys(
+                    critical_description(check)
+                    for check in item["checks"]
+                    if check["status"] != "GREEN"
+                )
+                for column, text in enumerate(
+                    (str(index + 1), STATUS_TEXT[status], "\n".join(findings) or "—")
+                ):
+                    cell = QTableWidgetItem(text)
+                    cell.setToolTip(text)
+                    self.acquisitions.setItem(index, column, cell)
+                color_item(self.acquisitions.item(index, 1), status)
+            self.acquisitions.resizeRowsToContents()
         summary = [f"Snímky / rámce: {row.count}"] if row else []
         if row:
             for title, field, unit in (
@@ -155,11 +198,15 @@ class SequenceDetail(QWidget):
             completion = ", ".join(
                 dict.fromkeys(STATUS_TEXT[item["completeness_status"]] for item in row.evaluations)
             )
-            image = (
-                "nevyhodnocena"
-                if any(item["image_required"] for item in row.evaluations)
-                else "není součástí DEMO"
-            )
+            image = ", ".join(
+                dict.fromkeys(
+                    STATUS_TEXT[item.get("image_status", "GRAY")]
+                    if item.get("image_status", "GRAY") != "GRAY"
+                    else "nevyhodnocena"
+                    for item in row.evaluations
+                    if item["image_required"]
+                )
+            ) or "nepožadována"
             self.layers.setText(
                 f"Metadata: {metadata}   |   Dokončení: {completion}"
                 f"   |   Obrazová kontrola: {image}"
@@ -175,7 +222,7 @@ class SequenceDetail(QWidget):
             if row
             else "Vyberte sekvenci pro zobrazení detailu"
         )
-        checks = []
+        checks = list(row.checks) if row else []
         if row:
             for evaluation in row.evaluations:
                 checks.extend(evaluation.get("checks", ()))

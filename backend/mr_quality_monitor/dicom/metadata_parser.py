@@ -1,6 +1,8 @@
 """Header-only extraction of standard metadata with explicit frame provenance."""
 
+from decimal import Decimal
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
@@ -13,6 +15,9 @@ from ..analysis.metadata_normalizer import (
     normalize,
 )
 from ..vendors.base import VendorAdapter, adapter_for, raw_strings
+
+if TYPE_CHECKING:
+    from ..protocols.models import ProstateChecks
 
 F = FieldSpec
 FIELDS: dict[str, FieldSpec] = {
@@ -76,6 +81,10 @@ FIELDS: dict[str, FieldSpec] = {
     "ImageOrientationPatient": F("float", count=6),
     "DiffusionGradientOrientation": F("float", count=3),
     "DiffusionBValue": F("float", "s/mm2"),
+    "PrivateDiffusionBValue": F("float", "s/mm2"),
+    "SliceGap": F("float", "mm"),
+    "PhaseResolution": F("float", "mm"),
+    "FrequencyResolution": F("float", "mm"),
     "MagneticFieldStrength": F("float", "T"),
     "PixelBandwidth": F("float", "Hz/pixel"),
     "NumberOfAverages": F("float"),
@@ -120,6 +129,87 @@ FUNCTIONAL_PATHS = {
     "TemporalPositionIndex": ("FrameContentSequence", "TemporalPositionIndex"),
 }
 IDENTIFIERS = {"PatientID", "PatientName", "IssuerOfPatientID", "AccessionNumber"}
+DERIVED_FIELDS = {
+    "PrivateDiffusionBValue",
+    "SliceGap",
+    "FieldOfView",
+    "PhaseResolution",
+    "FrequencyResolution",
+}
+
+
+def prostate_metadata(dataset, fields, profile, vendor):
+    def derive(name, inputs, calculate):
+        values = [fields[key] for key in inputs]
+        if all(value.state == "known" for value in values):
+            result = calculate(*(value.value for value in values))
+            if result is not None:
+                fields[name] = MetadataValue(
+                    result,
+                    FIELDS[name].unit,
+                    "known",
+                    tuple(source for value in values for source in value.sources),
+                )
+
+    derive(
+        "SliceGap",
+        ("SpacingBetweenSlices", "SliceThickness"),
+        lambda spacing, thickness: (
+            float(Decimal(str(spacing)) - Decimal(str(thickness)))
+            if spacing > 0 and thickness > 0
+            else None
+        ),
+    )
+    derive(
+        "FieldOfView",
+        ("Rows", "Columns", "PixelSpacing"),
+        lambda rows, cols, spacing: (
+            tuple(round(size * step, 2) for size, step in zip((rows, cols), spacing, strict=True))
+            if min(rows, cols, *spacing) > 0
+            else None
+        ),
+    )
+    for index, name in enumerate(("PhaseResolution", "FrequencyResolution")):
+        derive(
+            name,
+            ("PixelSpacing", "InPlanePhaseEncodingDirection"),
+            lambda spacing, direction: (
+                spacing[index if direction == "ROW" else 1 - index]
+                if direction in {"ROW", "COL"} and min(spacing) > 0
+                else None
+            ),
+        )
+
+    sources = []
+    if vendor == "siemens":
+        for source in profile.private_b_values:
+            if str(
+                dataset.get("ManufacturerModelName", "")
+            ) != source.model or source.software_version not in raw_strings(
+                dataset.get("SoftwareVersions")
+            ):
+                continue
+            tag = int(source.tag, 16)
+            element = dataset.get(tag)
+            creator = dataset.get((tag >> 16, (tag & 0xFFFF) >> 8))
+            if element is None or creator is None or creator.value != source.creator:
+                continue
+            invalid = element.VR != source.vr
+            try:
+                values = raw_strings(element.value)
+            except ValueError:
+                values, invalid = (), True
+            sources.append(
+                Evidence(
+                    f"private[{source.creator}].{source.tag}",
+                    source.tag,
+                    values,
+                    "s/mm2",
+                    "mou-private/1",
+                    invalid,
+                )
+            )
+    fields["PrivateDiffusionBValue"] = normalize(FIELDS["PrivateDiffusionBValue"], tuple(sources))
 
 
 class MetadataStructureError(ValueError):
@@ -182,7 +272,11 @@ def _populate_derived_fields(fields: dict[str, MetadataValue]) -> None:
         fov_col = round(cols * spacing[1], 4)
         fields["FieldOfView"] = normalize(
             FIELDS["FieldOfView"],
-            (_derived_evidence("Rows*PixelSpacing[0],Columns*PixelSpacing[1]", (fov_row, fov_col), "mm"),),
+            (
+                _derived_evidence(
+                    "Rows*PixelSpacing[0],Columns*PixelSpacing[1]", (fov_row, fov_col), "mm"
+                ),
+            ),
         )
         direction = _known("InPlanePhaseEncodingDirection")
         acq_matrix = _known("AcquisitionMatrix")
@@ -237,6 +331,7 @@ def parse_dataset(
     include_identifiers: bool = False,
     adapter: VendorAdapter | None = None,
     b_value_tags: tuple[str, ...] | None = None,
+    prostate_checks: "ProstateChecks | None" = None,
 ) -> tuple[MetadataRecord, ...]:
     """Return one record per frame without touching pixel_array.
 
@@ -272,10 +367,22 @@ def parse_dataset(
     for frame in range(frames):
         fields = {}
         for keyword, spec in FIELDS.items():
+            if keyword in DERIVED_FIELDS:
+                if prostate_checks is not None:
+                    fields[keyword] = MetadataValue(
+                        None, spec.unit, "missing", reason="not_available"
+                    )
+                continue
             if keyword in IDENTIFIERS and not include_identifiers:
                 fields[keyword] = MetadataValue(None, spec.unit, "missing", reason="suppressed")
                 continue
-            if keyword in {"FieldOfView", "SliceGap", "PhaseResolution", "FrequencyResolution", "PatientBMI"}:
+            if keyword in {
+                "FieldOfView",
+                "SliceGap",
+                "PhaseResolution",
+                "FrequencyResolution",
+                "PatientBMI",
+            }:
                 fields[keyword] = MetadataValue(None, spec.unit, "missing", reason="not_available")
                 continue
             sources = []
@@ -302,6 +409,8 @@ def parse_dataset(
             sources.extend(private.get(keyword, ()))
             fields[keyword] = normalize(spec, tuple(sources))
         _populate_derived_fields(fields)
+        if prostate_checks is not None:
+            prostate_metadata(dataset, fields, prostate_checks, detected.name)
         records.append(
             MetadataRecord(
                 fields, frame_index=frame if per_frame else None, vendor_parser=adapter.identifier
@@ -315,10 +424,12 @@ def parse_file(
     *,
     include_identifiers: bool = False,
     b_value_tags: tuple[str, ...] | None = None,
+    prostate_checks: "ProstateChecks | None" = None,
 ) -> tuple[MetadataRecord, ...]:
     """Load a file header only, leaving stored pixel data unallocated and undecoded."""
     return parse_dataset(
         dcmread(path, stop_before_pixels=True),
         include_identifiers=include_identifiers,
         b_value_tags=b_value_tags,
+        prostate_checks=prostate_checks,
     )

@@ -263,3 +263,54 @@ def test_closing_gui_does_not_stop_receiver(app, tmp_path, image):
     finally:
         close_window(app, window)
         listener.stop()
+
+
+def test_mou_shows_specific_b_value_error_and_closes_study(app, tmp_path, image, monkeypatch):
+    from pathlib import Path
+
+    from mr_quality_monitor.dicom.storage import Storage
+    from mr_quality_monitor.protocols.manager import load_protocol
+    from mr_quality_monitor.services.analysis_worker import open_worker
+    from test_prostate import private_b, series
+
+    snapshot = load_protocol(Path("config/protocols/mou_prostate.yaml"))
+    image.PixelData = bytes(300 * 300 * 2)
+
+    def low_dwi(positions):
+        return series(image, "ep2d_diff_zoomit_b50_800_tra_DRB", "*ez_b50t", positions)
+
+    storage = Storage(tmp_path, 0)
+    try:
+        for value, positions in [(251, (0, 3)), (50, (0, 3))]:
+            for member in low_dwi(positions):
+                private_b(member, value, value)
+                storage.receive(
+                    member, str(member.file_meta.TransferSyntaxUID), "MR_TEST", "127.0.0.1"
+                )
+    finally:
+        storage.close()
+    with open_worker(tmp_path, snapshot) as worker:
+        assert worker.run_once(threading.Event()) == 0
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox, "question", lambda *_: QtWidgets.QMessageBox.StandardButton.Yes
+    )
+    window = MainWindow(ReceiverConfig(storage_root=tmp_path), refresh_interval_ms=60000)
+    window.show()
+    try:
+        wait_for(app, lambda: window.snapshot is not None)
+        index = next(i for i, row in enumerate(window.snapshot.rows) if row.key == "seq:DWI_LOW")
+        window.sequence_table.selectRow(index)
+        window.sequence_details_button.click()
+        assert window.sequence_table.rowCount() == 7
+        explanation = window.detail.explanation.text()
+        assert explanation.count("B-hodnota 251 s/mm² překročila povolené maximum 100 s/mm².") == 1
+        assert "Počet dotčených snímků nebo rámců: 2." in explanation
+        assert window.detail.acquisitions.rowCount() == 2
+        window.detail_dialog.close()
+        window.study_details_button.click()
+        window.finalize_button.click()
+        wait_for(app, lambda: window.snapshot.message == "Vyšetření bylo uzavřeno.")
+        assert next(row.status for row in window.snapshot.rows if row.key == "seq:DWI_ADC") == "RED"
+        assert "Chybějí 2 vyhovující roviny." in window.study_findings.toPlainText()
+    finally:
+        close_window(app, window)

@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -12,6 +12,7 @@ from ..protocols.manager import ProtocolSnapshot
 from ..protocols.models import FrozenModel
 from .image_quality import ArtifactFinding
 from .metadata_normalizer import Value
+from .prostate_geometry import alignment
 from .sequence_identifier import Identification, identify
 from .series_aggregator import AcquisitionGroup
 from .study_rules import StudyCheckResult, evaluate_study_rules
@@ -238,7 +239,9 @@ def evaluate(
             reasons.append("completion_not_confirmed")
         reasons.extend(check.reason for check in checks if check.status != "GREEN")
     if not image_required:
-        reasons.append("image_not_requested_in_demo" if protocol.mode == "DEMO" else "image_not_required")
+        reasons.append(
+            "image_not_requested_in_demo" if protocol.mode == "DEMO" else "image_not_required"
+        )
     elif image_status == "GRAY":
         reasons.append("image_not_evaluated")
     overall = aggregate(
@@ -296,6 +299,7 @@ class StudyEvaluation:
     engine_version: str = ENGINE_VERSION
     mode: str = "DEMO"
     clinical_quality_evaluated: bool = False
+    checks: tuple[CheckResult, ...] = ()
 
     def to_dict(self) -> dict:
         result = asdict(self)
@@ -303,6 +307,117 @@ class StudyEvaluation:
             self.finalization.model_dump(mode="json") if self.finalization else None
         )
         return result
+
+
+T2_ROLES = ("T2_SAG", "T2_COR", "T2_TRA")
+DWI_ROLES = ("DWI_LOW", "DWI_INTERMEDIATE", "DWI_HIGH", "DWI_ADC")
+
+
+def prostate_alignment(results, groups, profile):
+    group_by_key = {group.key: group for group in groups}
+    reference = [item for item in results if item.sequence_id == "T2_TRA"]
+    output = []
+    expected = {
+        "position_tolerance_mm": profile.position_tolerance_mm,
+        "orientation_tolerance_degrees": profile.orientation_tolerance_degrees,
+    }
+    configured = all(value is not None for value in expected.values())
+    for item in results:
+        if item.sequence_id not in DWI_ROLES:
+            output.append(item)
+            continue
+        reason, metrics = "alignment_axial_unavailable", None
+        if len(reference) == 1:
+            reason, metrics = alignment(
+                group_by_key[item.group_key], group_by_key[reference[0].group_key]
+            )
+        status = "GRAY"
+        if metrics is not None and configured:
+            deviation, spacing, angle = metrics
+            status = (
+                "GREEN"
+                if max(deviation, spacing) <= profile.position_tolerance_mm
+                and angle <= profile.orientation_tolerance_degrees
+                else "RED"
+            )
+            if status == "RED":
+                reason = "alignment_outside_tolerance"
+        elif configured and reason == "alignment_no_overlap":
+            status = "RED"
+        check = CheckResult("dwi_alignment", "DWIAlignment", status, reason, metrics, expected)
+        output.append(
+            replace(
+                item,
+                status=aggregate((item.status, status)) if configured else item.status,
+                checks=(*item.checks, check),
+            )
+        )
+    return tuple(output)
+
+
+def prostate_study_checks(presence, results, groups, profile, finalized):
+    viable_planes = {
+        item.sequence_id
+        for item in results
+        if item.sequence_id in T2_ROLES and item.status == "GREEN"
+    }
+    uncertain_planes = {
+        item.sequence_id
+        for item in results
+        if item.sequence_id in T2_ROLES and item.status == "GRAY"
+    }
+    count = len(viable_planes)
+    potential_count = len(viable_planes | uncertain_planes)
+    t2_status = "GREEN" if count >= 2 else "GRAY"
+    if finalized and potential_count < 2:
+        t2_status = "RED"
+    axial_received = any(item.sequence_id == "T2_TRA" for item in results)
+    dwi = [item for item in presence if item.sequence_id in DWI_ROLES]
+    dwi_status = aggregate(tuple(item.status for item in dwi))
+    resolve_required = any(item.status == "RED" for item in dwi)
+    checks = (
+        CheckResult(
+            "t2_planes",
+            "T2PlaneCount",
+            t2_status,
+            "t2_plane_count",
+            count,
+            {"minimum": 2},
+        ),
+        CheckResult(
+            "axial_t2",
+            "T2Axial",
+            "GREEN" if axial_received else ("ORANGE" if finalized else "GRAY"),
+            "t2_axial_present" if axial_received else "t2_axial_missing",
+            None,
+            {},
+        ),
+        CheckResult(
+            "dwi_set",
+            "DWISet",
+            dwi_status,
+            "dwi_resolve_required" if resolve_required else "dwi_set_status",
+            None,
+            {},
+        ),
+    )
+    if not resolve_required:
+        return checks
+    identities = {(item.protocol_name, item.sequence_name) for item in profile.resolve_identities}
+    received = any(
+        all(
+            (record.known("ProtocolName"), record.known("SequenceName")) in identities
+            for record in group.members
+        )
+        for group in groups
+    )
+    status, reason = "GRAY", "resolve_identity_unknown"
+    if received:
+        reason = "resolve_present_unverified"
+    elif identities:
+        status = "RED" if finalized else "GRAY"
+        reason = "resolve_missing" if finalized else "resolve_pending"
+    return (*checks, CheckResult("resolve_presence", "ResolvePresence", status, reason, None, {}))
 
 
 def evaluate_study(
@@ -339,16 +454,19 @@ def evaluate_study(
     image_findings = image_findings or {}
     time = evaluation_time(evaluated_at)
     timestamp = datetime.fromisoformat(time)
+    profile = snapshot.protocol.prostate_checks
     results = tuple(
         evaluate(
             group,
             snapshot,
-            completion=completions.get(group.key),
+            completion=completions.get(group.key) or (finalization if profile else None),
             image_findings=image_findings.get(group.key),
             evaluated_at=timestamp,
         )
         for group in sorted(groups, key=lambda item: item.key)
     )
+    if profile:
+        results = prostate_alignment(results, groups, profile)
     study_checks = evaluate_study_rules(
         snapshot.protocol,
         results,
@@ -393,12 +511,21 @@ def evaluate_study(
         presence.append(
             SequencePresence(sequence.sequence_id, sequence.required, status, reason, keys)
         )
+    checks = (
+        prostate_study_checks(presence, results, groups, profile, finalization is not None)
+        if profile
+        else ()
+    )
     overall = aggregate(
         tuple(item.status for item in results)
         + tuple(item.status for item in presence if item.required)
         + tuple(check.status for check in study_checks)
         + (("GRAY",) if finalization is None else ())
     )
+    if profile:
+        overall = aggregate(
+            tuple(item.status for item in checks) + (("GRAY",) if finalization is None else ())
+        )
     return StudyEvaluation(
         overall,
         tuple(presence),
@@ -409,6 +536,7 @@ def evaluate_study(
         time,
         protocol_id=snapshot.protocol.protocol_id,
         protocol_version=snapshot.protocol.version,
+        checks=checks,
         study_checks=study_checks,
         mode=snapshot.protocol.mode,
         clinical_quality_evaluated=any(item.clinical_quality_evaluated for item in results),

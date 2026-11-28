@@ -1,4 +1,4 @@
-"""Single-window, read-only monitor; all storage reads run in a dedicated Qt thread."""
+"""Single-window monitor with background reads and operator-confirmed closure."""
 
 import logging
 
@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QTableWidgetItem,
@@ -21,8 +23,17 @@ from PySide6.QtWidgets import (
 )
 
 from ..config import ReceiverConfig
+from ..database.database import open_database
+from ..database.repository import HistoryRepository
 from .fonts import ensure_font
-from .presentation import COLORS, STATUS_SYMBOLS, STATUS_TEXT, effective_status
+from .presentation import (
+    COLORS,
+    STATUS_SYMBOLS,
+    STATUS_TEXT,
+    critical_description,
+    effective_status,
+    reason_text,
+)
 from .sequence_detail import SequenceDetail, color_item, table
 from .view_data import MonitorReader
 
@@ -41,6 +52,7 @@ def label(text="", name=""):
 class ReadWorker(QObject):
     loaded = Signal(int, object)
     failed = Signal(int)
+    finalized = Signal(int, bool)
 
     def __init__(self, reader):
         super().__init__()
@@ -54,6 +66,22 @@ class ReadWorker(QObject):
         except Exception as error:
             LOG.error("monitor_read_failed type=%s", type(error).__name__)
             self.failed.emit(generation)
+
+    @Slot(int, str, str, object)
+    def finalize(self, generation, study_uid, branch_id, path):
+        try:
+            engine, sessions = open_database(path)
+            try:
+                HistoryRepository(sessions).finalize_current(
+                    study_uid, branch_id, actor="local_operator"
+                )
+            finally:
+                engine.dispose()
+        except Exception as error:
+            LOG.error("study_finalize_failed type=%s", type(error).__name__)
+            self.finalized.emit(generation, False)
+        else:
+            self.finalized.emit(generation, True)
 
 
 class StatusLegend(QWidget):
@@ -93,6 +121,7 @@ class StatusLegend(QWidget):
 
 class MainWindow(QMainWindow):
     request_read = Signal(int, object, object)
+    request_finalize = Signal(int, str, str, object)
     snapshot_applied = Signal()
 
     def __init__(self, config: ReceiverConfig, *, reader=None, refresh_interval_ms=1000):
@@ -116,6 +145,8 @@ class MainWindow(QMainWindow):
         self.request_read.connect(self.worker.read)
         self.worker.loaded.connect(self._loaded)
         self.worker.failed.connect(self._failed)
+        self.request_finalize.connect(self.worker.finalize)
+        self.worker.finalized.connect(self._finalized)
         self.reader_thread.finished.connect(self.worker.deleteLater)
         self.reader_thread.finished.connect(self._thread_finished)
         self.reader_thread.start()
@@ -197,6 +228,15 @@ class MainWindow(QMainWindow):
         self.receiver_error_label = label("", "receiverError")
         grid.addWidget(self.receiver_label, 3, 0, 1, 3)
         grid.addWidget(self.receiver_error_label, 4, 0, 1, 3)
+        self.finalize_button = QPushButton("Uzavřít vyšetření")
+        self.finalize_button.clicked.connect(self._finalize)
+        self.finalize_button.hide()
+        grid.addWidget(self.finalize_button, 5, 2)
+        self.study_findings = QPlainTextEdit()
+        self.study_findings.setReadOnly(True)
+        self.study_findings.setAccessibleName("Kontroly vyšetření a další série")
+        self.study_findings.hide()
+        grid.addWidget(self.study_findings, 6, 0, 1, 3)
         outer.addWidget(card)
 
         self.detail_dialog = QDialog(self)
@@ -253,6 +293,8 @@ class MainWindow(QMainWindow):
         self.snapshot = None
         self.row_key = None
         self.sequence_table.setRowCount(0)
+        self.finalize_button.hide()
+        self.study_findings.hide()
         self.detail_dialog.close()
         self.detail.show_row(None)
         self.patient_label.setText("Pacient: načítám…")
@@ -293,6 +335,7 @@ class MainWindow(QMainWindow):
             self.snapshot = snapshot
             self.study_uid, self.branch_id = snapshot.study_uid, snapshot.branch_id
             self.display_stale = snapshot.stale
+            self._study_findings(snapshot)
             with QSignalBlocker(self.study_combo):
                 self.study_combo.clear()
                 for study in snapshot.studies:
@@ -323,6 +366,8 @@ class MainWindow(QMainWindow):
             self._state(snapshot.status)
             self.message_label.setText(snapshot.message)
             self.message_label.setVisible(bool(snapshot.message))
+            self.finalize_button.setVisible(snapshot.can_finalize)
+            self.finalize_button.setEnabled(snapshot.can_finalize)
             if redraw:
                 self._draw_rows()
             self._health(snapshot.health)
@@ -347,6 +392,7 @@ class MainWindow(QMainWindow):
             )
             if self.snapshot:
                 self._draw_rows()
+                self._study_findings(self.snapshot)
             self.receiver_label.setText("Přijímač: stav se nepodařilo obnovit")
         if self.pending and not self.closing:
             self.pending = False
@@ -356,6 +402,64 @@ class MainWindow(QMainWindow):
         background, foreground = COLORS[status]
         self.state_label.setText(text or STATUS_TEXT[status])
         self.state_label.setStyleSheet(f"background: {background}; color: {foreground};")
+
+    def _study_findings(self, snapshot):
+        lines = []
+        for row in snapshot.study_rows:
+            status = effective_status(row, self.display_stale)
+            findings = [critical_description(check) for check in row.checks]
+            description = " ".join(findings) or reason_text(row.reason)
+            if row.action and status in {"ORANGE", "RED"}:
+                description = f"{description} {row.action}"
+            lines.append(f"{STATUS_TEXT[status]} · {row.name}\n{description}")
+        text = "\n\n".join(lines)
+        if self.study_findings.toPlainText() != text:
+            self.study_findings.setPlainText(text)
+        self.study_findings.setVisible(bool(lines))
+
+    def _finalize(self):
+        snapshot = self.snapshot
+        if self.busy or not snapshot or not snapshot.can_finalize:
+            return
+        if (
+            QMessageBox.question(
+                self,
+                "Uzavřít vyšetření",
+                "Je přenos ukončený? Aplikace označí povinné série, které nebyly přijaty.",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        current = self.snapshot
+        if (
+            self.busy
+            or not current
+            or not current.can_finalize
+            or (snapshot.study_uid, snapshot.branch_id) != (current.study_uid, current.branch_id)
+        ):
+            return
+        self.busy = True
+        self.finalize_button.setEnabled(False)
+        self.request_finalize.emit(
+            self.generation,
+            snapshot.study_uid,
+            snapshot.branch_id,
+            self.config.storage_root / "intake.sqlite3",
+        )
+
+    @Slot(int, bool)
+    def _finalized(self, generation, success):
+        self.busy = False
+        if self.closing:
+            return
+        self.pending = False
+        if generation == self.generation and not success:
+            QMessageBox.warning(
+                self,
+                "Vyšetření nelze uzavřít",
+                "Počkejte na dokončení analýzy všech přijatých snímků a zkuste to znovu.",
+            )
+        self.refresh()
 
     def _draw_rows(self):
         snapshot = self.snapshot

@@ -159,7 +159,11 @@ def _check_pair_alignment(
 
     ref_sp = ref_first.known("SpacingBetweenSlices") or ref_first.known("SliceThickness")
     tgt_sp = tgt_first.known("SpacingBetweenSlices") or tgt_first.known("SliceThickness")
-    if ref_sp is not None and tgt_sp is not None and abs(ref_sp - tgt_sp) > rule.spacing_tolerance_mm:
+    if (
+        ref_sp is not None
+        and tgt_sp is not None
+        and abs(ref_sp - tgt_sp) > rule.spacing_tolerance_mm
+    ):
         return False, {
             "reason": "slice_spacing_mismatch",
             "reference_spacing_mm": ref_sp,
@@ -172,7 +176,8 @@ def _check_pair_alignment(
         return False, {"reason": "missing_slice_positions"}
 
     # Check overlapping slice-to-slice positions (allows differing slice counts).
-    ref_min, ref_max = min(ref_pos) - rule.position_tolerance_mm, max(ref_pos) + rule.position_tolerance_mm
+    ref_min = min(ref_pos) - rule.position_tolerance_mm
+    ref_max = max(ref_pos) + rule.position_tolerance_mm
     overlapping = [pos for pos in tgt_pos if ref_min <= pos <= ref_max]
     if not overlapping:
         return False, {"reason": "no_slice_overlap"}
@@ -260,7 +265,8 @@ def _eval_coverage(
                 "segmentation_geometry_missing",
                 {},
             )
-        seg_min, seg_max = min(seg_group.projected_positions_mm), max(seg_group.projected_positions_mm)
+        seg_min = min(seg_group.projected_positions_mm)
+        seg_max = max(seg_group.projected_positions_mm)
     else:
         seg_min, seg_max = seg_bounds_mm
     uncovered = {}
@@ -317,5 +323,6 @@ def evaluate_study_rules(
     for rule in rules.geometry_alignments:
         results.append(_eval_alignment(rule, by_seq))
     for rule in rules.coverage_checks:
-        results.append(_eval_coverage(rule, by_seq, seg_bounds_mm.get(rule.segmentation_sequence_id)))
+        seg_bounds = seg_bounds_mm.get(rule.segmentation_sequence_id)
+        results.append(_eval_coverage(rule, by_seq, seg_bounds))
     return tuple(results)

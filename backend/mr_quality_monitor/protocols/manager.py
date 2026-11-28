@@ -45,9 +45,10 @@ class ProtocolSnapshot:
 
     @classmethod
     def create(cls, protocol: Protocol) -> "ProtocolSnapshot":
-        content = json.dumps(
-            protocol.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-        )
+        data = protocol.model_dump(mode="json")
+        if protocol.prostate_checks is None:
+            del data["prostate_checks"]
+        content = json.dumps(data, sort_keys=True, separators=(",", ":"))
         return cls(content, hashlib.sha256(content.encode()).hexdigest())
 
     @property

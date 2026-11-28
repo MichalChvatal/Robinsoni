@@ -122,3 +122,43 @@ def test_ambiguous_uid_conflict_and_independent_causes():
     assert pair_series({"low"}, "mid", {"low", "mid"}, 1)[1] == "uid_conflict"
     assert not causes_agree({"SliceThickness", "PixelSpacing"}, {"PhaseResolution"})
     assert causes_agree({"SliceThickness", "PixelSpacing"}, {"SliceThickness", "PhaseResolution"})
+
+
+def test_windows_default_prostate_protocol_on_mr50000(tmp_path):
+    """Use the same protocol as the Windows launcher through intake and GUI history."""
+    protocol = load_protocol(Path("config/protocols/prostate_mou.yaml"))
+    archive_path = required(DATA / "DICOMDIR_MR50000_ukazka_jednoho_mereni.zip")
+    store = Storage(tmp_path, 0)
+    try:
+        with ZipFile(archive_path) as archive:
+            for name in archive.namelist():
+                if "/DATA/DICOM/" not in name or name.endswith("/"):
+                    continue
+                member = dcmread(BytesIO(archive.read(name)))
+                store.receive(
+                    member, str(member.file_meta.TransferSyntaxUID), "MR_TEST", "127.0.0.1"
+                )
+    finally:
+        store.close()
+
+    with open_worker(tmp_path, protocol) as worker:
+        assert worker.run_once(Event()) == 0
+        reader = MonitorReader(tmp_path)
+        view = reader.read()
+        assert view.can_finalize and not view.stale
+        assert view.received == 321 and view.pending == 0
+        assert worker.history.get_protocol(view.study_uid).protocol.protocol_id == "PROSTATE_MOU"
+        rows = {row.key: row for row in view.rows}
+        assert all(
+            rows[f"seq:{sequence}"].evaluations
+            for sequence in ("T2_SAG", "T2_COR", "T2_TRA", "DWI_LOW_B", "DWI_HIGH_B")
+        )
+        image_statuses = tuple(item["image_status"] for item in rows["seq:T2_TRA"].evaluations)
+        assert set(image_statuses) - {"GRAY"}
+        assert view.study_rows
+
+        worker.history.finalize_current(view.study_uid, view.branch_id, actor="reference_test")
+        closed = reader.read()
+        assert not closed.can_finalize
+        axial = next(row for row in closed.rows if row.key == "seq:T2_TRA")
+        assert tuple(item["image_status"] for item in axial.evaluations) == image_statuses

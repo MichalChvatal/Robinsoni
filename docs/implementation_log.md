@@ -407,3 +407,20 @@ metadat, enginu a historie, kompletní workflow a lokální spuštění komponen
   identifikátoru PROSTATE_MOU a git diff --check.
 - Běhové ověření načtení YAML ani Python testy neproběhly: .venv/Scripts/python.exe
   odkazuje na nepřístupnou instalaci Pythonu z WindowsApps.
+
+## 2026-11-28 - integrace a ověření PROSTATE_MOU
+
+- Doplněna implementace z odložených změn, kterou vyžadovaly regresní testy
+  technického protokolu `MOU_PROSTATE`. Výchozí Windows protokol je `PROSTATE_MOU`.
+- GUI zobrazuje obrazové výsledky a kontroly celého vyšetření. Ruční uzavření
+  obou prostatických protokolů vyžaduje zpracování přijatých MR objektů.
+  Výsledky detektorů se při uzavření převezmou z posledního hodnocení.
+- MR50000 bylo ověřeno v čistém lokálním úložišti. Worker zpracoval 320 MR
+  objektů, jeden Secondary Capture ponechal mimo MR hodnocení a uložil protokol
+  `PROSTATE_MOU`. Datová vrstva GUI načetla výsledky bez čekajících snímků.
+- Ruff prošel. Síťové ověření C-STORE v tomto prostředí blokuje zákaz navázání
+  TCP spojení i na `127.0.0.1` (Windows 10013). Referenční regresní test proto
+  předává objekty přímo úložišti a ověřuje analýzu i historii GUI.
+- Z 240 testů prošlo 226 v prvním běhu. Další tři testy spouštění podprocesů
+  prošly po opravě místní `.venv`. Zbývajících 11 testů zastavilo omezení
+  síťového spojení popsané výše.

@@ -137,7 +137,8 @@ def main() -> int:
             module = "mr_quality_monitor.gui"
             if args.action == "send":
                 module += ".sender"
-            window = launch(module, args.config, logs / f"launcher-{args.action}.log")
+            options = ("--protocol", str(args.protocol)) if args.action == "start" else ()
+            window = launch(module, args.config, logs / f"launcher-{args.action}.log", *options)
             sleep(0.5)
             if window.poll() not in (None, 0):
                 raise RuntimeError("Okno aplikace se nepodařilo otevřít.")

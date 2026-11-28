@@ -137,6 +137,8 @@ def group_acquisitions(
             )
             for keyword in DIMENSIONS
         }
+        if "PrivateDiffusionBValue" in record.fields:
+            dimensions["SequenceName"] = record.known("SequenceName")
         if issues:
             dimensions["isolated_record"] = (identity[0], identity[1], index)
         key = hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()

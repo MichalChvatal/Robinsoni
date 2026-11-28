@@ -3,6 +3,15 @@
 ## Goal
 Prototype 2 (commit `8da89613`) implemented all major features but introduced **15 failing tests** and **25 lint errors** due to integration gaps. This plan fixes those gaps with **minimal new code** — no redesign, no rewrites.
 
+## Current status (2026-11-28)
+
+Steps 1–7 are integrated and Ruff passes. The Windows launcher defaults to
+`config/protocols/prostate_mou.yaml`. The MR50000 regression test checks
+`PROSTATE_MOU` from local storage through analysis and GUI history, including
+manual study closure and retention of image findings. The full DICOM C-STORE
+check still requires a Windows session that permits TCP loopback connections.
+See [the implementation log](implementation_log.md) for details.
+
 ---
 
 ## What prototype 2 already delivered (do NOT re-implement)

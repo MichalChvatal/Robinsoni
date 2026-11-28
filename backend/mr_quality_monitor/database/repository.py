@@ -10,10 +10,10 @@ from uuid import uuid4
 from pydicom.uid import MRImageStorage
 from sqlalchemy import exists, func, or_, select
 
+from ..analysis.image_quality.base import ArtifactFinding
 from ..analysis.metadata_normalizer import MetadataRecord
 from ..analysis.series_aggregator import AcquisitionGroup
 from ..analysis.validation_engine import CompletionEvidence, evaluate_study
-from ..analysis.image_quality.base import ArtifactFinding
 from ..dicom.metadata_parser import IDENTIFIERS
 from ..protocols.manager import ProtocolSnapshot
 from .models import (
@@ -342,6 +342,7 @@ class HistoryRepository:
         evaluated_at: datetime | None = None,
         intake_job_ids: tuple[int, ...] = (),
         image_findings: dict[str, tuple[ArtifactFinding, ...]] | None = None,
+        expected_run_id: str | None = None,
     ) -> str:
         """Evaluate outside the writer transaction, then atomically persist every input/result.
 
@@ -391,6 +392,29 @@ class HistoryRepository:
                     raise ValueError("Request ID was already used for another evaluation input")
                 return old.id
             study = session.get(Study, study_uid)
+            if expected_run_id is not None:
+                latest_id = session.scalar(
+                    select(ValidationRun.id)
+                    .where(ValidationRun.branch_id == branch.id)
+                    .order_by(ValidationRun.sequence_number.desc())
+                    .limit(1)
+                )
+                unfinished = session.scalar(
+                    select(DicomInstance.id)
+                    .outerjoin(AnalysisJob)
+                    .where(
+                        DicomInstance.study_uid == study_uid,
+                        DicomInstance.sop_class_uid == MRImageStorage,
+                        or_(
+                            DicomInstance.integrity_state != "stored",
+                            AnalysisJob.id.is_(None),
+                            AnalysisJob.state != "done",
+                        ),
+                    )
+                    .limit(1)
+                )
+                if latest_id != expected_run_id or unfinished or study.state == "closed":
+                    raise ValueError("Study is not ready for finalization")
             if intake_job_ids:
                 jobs = list(
                     session.execute(
@@ -565,6 +589,59 @@ class HistoryRepository:
                 ),
                 tuple(data["issues"]),
             )
+
+    def finalize_current(self, study_uid: str, branch_id: str, *, actor: str) -> str:
+        """Close the latest fully processed MOÚ snapshot with explicit operator evidence."""
+        with self.sessions() as session:
+            branch = self._branch(session, study_uid, branch_id)
+            protocol = self.get_protocol(study_uid, branch_id).protocol
+            if branch.label != "main" or not (protocol.prostate_checks or protocol.study_rules):
+                raise ValueError("Only the main MOÚ evaluation can be closed here")
+            run = session.scalar(
+                select(ValidationRun)
+                .where(ValidationRun.branch_id == branch_id)
+                .order_by(ValidationRun.sequence_number.desc())
+                .limit(1)
+            )
+            if run is None:
+                raise ValueError("No evaluation is available")
+            payload = checked_content(run.content, run.content_sha256)
+            image_findings = {
+                result["group_key"]: tuple(
+                    ArtifactFinding(
+                        detector_id=check["rule_id"].removeprefix("image:"),
+                        artifact_type=check["field"],
+                        status=check["status"],
+                        reason=check["reason"],
+                        score=check["actual"],
+                        threshold=check["expected"],
+                        affected_slices=tuple(int(path[6:-1]) for path in check["paths"]),
+                        action=check["action"],
+                    )
+                    for check in result["checks"]
+                    if check["rule_id"].startswith("image:")
+                )
+                for result in payload["acquisitions"]
+            }
+            acquisitions = tuple(
+                session.scalars(
+                    select(ValidationResult.acquisition_sha256)
+                    .where(
+                        ValidationResult.run_id == run.id, ValidationResult.scope == "acquisition"
+                    )
+                    .distinct()
+                )
+            )
+        return self.save_evaluation(
+            study_uid,
+            tuple(self.load_group(sha) for sha in acquisitions),
+            request_id=uuid4().hex,
+            actor=actor,
+            branch_id=branch_id,
+            finalization=CompletionEvidence(source="operator", reference=run.id),
+            expected_run_id=run.id,
+            image_findings=image_findings,
+        )
 
     def history(self, study_uid: str, branch_id: str | None = None) -> list[dict]:
         with self.sessions() as session:

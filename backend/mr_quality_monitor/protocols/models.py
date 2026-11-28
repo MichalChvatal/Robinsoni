@@ -73,7 +73,15 @@ class Target(FrozenModel):
         return self
 
 
-Constraint = Annotated[Exact | OneOf | Contains | Range | Target, Field(discriminator="kind")]
+class Limit(FrozenModel):
+    kind: Literal["limit"]
+    bound: Literal["minimum", "maximum"]
+    value: float = Field(strict=True)
+
+
+Constraint = Annotated[
+    Exact | OneOf | Contains | Range | Target | Limit, Field(discriminator="kind")
+]
 
 
 class Predicate(FrozenModel):
@@ -92,7 +100,7 @@ class Predicate(FrozenModel):
         if (spec.count == 1) != (self.components == "scalar"):
             raise ValueError("Select all/any for multicomponent fields, scalar otherwise")
         numeric = spec.kind in {"int", "float"}
-        if isinstance(self.constraint, (Range, Target)) and not numeric:
+        if isinstance(self.constraint, (Range, Target, Limit)) and not numeric:
             raise ValueError("Numeric constraints require a numeric field")
         if isinstance(self.constraint, Contains) and numeric:
             raise ValueError("contains requires a text field")
@@ -205,6 +213,26 @@ class SequenceDefinition(FrozenModel):
         return self
 
 
+class PrivateBValueSource(FrozenModel):
+    tag: Literal["0019100C", "00211105"]
+    creator: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    software_version: str = Field(min_length=1)
+    vr: Literal["IS", "DS", "SL", "SS", "US", "UL", "FD", "FL"]
+
+
+class ResolveIdentity(FrozenModel):
+    protocol_name: str = Field(min_length=1)
+    sequence_name: str = Field(min_length=1)
+
+
+class ProstateChecks(FrozenModel):
+    private_b_values: tuple[PrivateBValueSource, ...] = Field(min_length=1)
+    position_tolerance_mm: float | None = Field(default=None, ge=0)
+    orientation_tolerance_degrees: float | None = Field(default=None, ge=0, le=90)
+    resolve_identities: tuple[ResolveIdentity, ...] = ()
+
+
 class Protocol(FrozenModel):
     schema_version: Literal[1, 2]
     protocol_id: Identifier
@@ -216,6 +244,7 @@ class Protocol(FrozenModel):
     approved_by: str | None = None
     sequences: tuple[SequenceDefinition, ...] = Field(min_length=1)
     study_rules: StudyRules | None = None
+    prostate_checks: ProstateChecks | None = None
 
     @model_validator(mode="after")
     def unique_definitions(self):
@@ -231,4 +260,14 @@ class Protocol(FrozenModel):
             raise ValueError("Duplicate sequence IDs")
         if len({item.order for item in self.sequences}) != len(self.sequences):
             raise ValueError("Duplicate sequence order")
+        if self.prostate_checks and not {
+            "T2_SAG",
+            "T2_COR",
+            "T2_TRA",
+            "DWI_LOW",
+            "DWI_INTERMEDIATE",
+            "DWI_HIGH",
+            "DWI_ADC",
+        }.issubset({item.sequence_id for item in self.sequences}):
+            raise ValueError("Prostate checks require all prostate sequence roles")
         return self
