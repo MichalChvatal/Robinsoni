@@ -25,7 +25,12 @@ def decode_dataset_pixels(
     if rows <= 0 or cols <= 0 or samples != 1 or bits not in (8, 16) or not raw:
         return None
     count = rows * cols
-    typecode = "B" if bits == 8 and signed == 0 else "b" if bits == 8 else "H" if signed == 0 else "h"
+    typecode = (
+        "B" if bits == 8 and signed == 0
+        else "b" if bits == 8
+        else "H" if signed == 0
+        else "h"
+    )
     arr = array(typecode)
     expected_bytes = count * (bits // 8)
     if len(raw) < expected_bytes:

@@ -13,12 +13,14 @@ from sqlalchemy import exists, func, or_, select
 from ..analysis.metadata_normalizer import MetadataRecord
 from ..analysis.series_aggregator import AcquisitionGroup
 from ..analysis.validation_engine import CompletionEvidence, evaluate_study
+from ..analysis.image_quality.base import ArtifactFinding
 from ..dicom.metadata_parser import IDENTIFIERS
 from ..protocols.manager import ProtocolSnapshot
 from .models import (
     AcquisitionMember,
     AnalysisBranch,
     AnalysisJob,
+    ArtifactFindingRow,
     DicomInstance,
     HistoryEvent,
     LogicalAcquisition,
@@ -339,6 +341,7 @@ class HistoryRepository:
         finalization: CompletionEvidence | None = None,
         evaluated_at: datetime | None = None,
         intake_job_ids: tuple[int, ...] = (),
+        image_findings: dict[str, tuple[ArtifactFinding, ...]] | None = None,
     ) -> str:
         """Evaluate outside the writer transaction, then atomically persist every input/result.
 
@@ -352,6 +355,7 @@ class HistoryRepository:
             snapshot,
             completions=completions,
             finalization=finalization,
+            image_findings=image_findings,
             evaluated_at=evaluated_at,
         )
         payload = canonical(evaluation.to_dict())
@@ -482,6 +486,20 @@ class HistoryRepository:
                             status=result.status,
                             reason=";".join(result.reasons),
                             content=canonical({"reasons": result.reasons}),
+                        )
+                    )
+                # Persist artifact findings for this acquisition
+                for finding in (image_findings or {}).get(result.group_key, ()):
+                    import json as _json  # noqa: PLC0415
+                    session.add(
+                        ArtifactFindingRow(
+                            result_id=row.id,
+                            detector_id=finding.detector_id,
+                            artifact_type=finding.artifact_type,
+                            status=finding.status,
+                            score=finding.score,
+                            threshold_json=_json.dumps(finding.threshold, allow_nan=False),
+                            affected_slices_json=_json.dumps(list(finding.affected_slices)),
                         )
                     )
             for presence in evaluation.sequences:

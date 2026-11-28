@@ -50,7 +50,7 @@ def test_upgrade_preserves_intake_rows_and_creates_backup(tmp_path, legacy):
     engine, _sessions = open_database(path)
     try:
         with engine.connect() as connection:
-            assert connection.exec_driver_sql("SELECT version FROM schema_version").scalar() == 2
+            assert connection.exec_driver_sql("SELECT version FROM schema_version").scalar() == 3
             assert (
                 connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
                 == migration.HEAD
@@ -89,7 +89,7 @@ def test_failed_migration_rolls_back_ddl_and_legacy_adoption(tmp_path, monkeypat
     monkeypatch.setattr(migration.command, "upgrade", original)
     engine, _ = open_database(path)
     engine.dispose()
-    assert read_rows(path, "SELECT version FROM schema_version") == [(2,)]
+    assert read_rows(path, "SELECT version FROM schema_version") == [(3,)]
 
 
 @pytest.mark.parametrize("kind", ["future", "unknown", "missing_column"])

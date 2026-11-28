@@ -87,8 +87,8 @@ class MonitorReader:
             versions = [
                 tuple(row) for row in connection.execute("SELECT id,version FROM schema_version")
             ]
-            if versions != [(1, 2)]:
-                raise ValueError("Monitor requires migrated schema version 2")
+            if versions not in ([(1, 2)], [(1, 3)]):
+                raise ValueError("Monitor requires migrated schema version 2 or 3")
             return self._read(connection, health, study_uid, branch_id)
         finally:
             connection.rollback()

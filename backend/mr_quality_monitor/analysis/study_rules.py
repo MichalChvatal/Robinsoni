@@ -66,7 +66,9 @@ def _eval_min_valid(
             if finalized
             else "group_min_valid_pending"
         )
-        return StudyCheckResult(rule.rule_id, "min_valid_group", status, reason, details, rule.action)
+        return StudyCheckResult(
+            rule.rule_id, "min_valid_group", status, reason, details, rule.action
+        )
     if rule.preferred_sequence_id and rule.preferred_sequence_id not in valid_seq_ids:
         return StudyCheckResult(
             rule.rule_id,
@@ -76,7 +78,9 @@ def _eval_min_valid(
             {**details, "preferred_sequence_id": rule.preferred_sequence_id},
             rule.action,
         )
-    return StudyCheckResult(rule.rule_id, "min_valid_group", "GREEN", "group_requirement_met", details)
+    return StudyCheckResult(
+        rule.rule_id, "min_valid_group", "GREEN", "group_requirement_met", details
+    )
 
 
 def _eval_fallback(
@@ -108,7 +112,9 @@ def _eval_fallback(
         "fallback_ok": fallback_ok,
     }
     if not primary_bad and not primary_missing:
-        return StudyCheckResult(rule.rule_id, "fallback_group", "GREEN", "primary_set_valid", details)
+        return StudyCheckResult(
+            rule.rule_id, "fallback_group", "GREEN", "primary_set_valid", details
+        )
     if fallback_ok:
         return StudyCheckResult(
             rule.rule_id,

@@ -10,6 +10,7 @@ from pydicom.errors import InvalidDicomError
 from pydicom.uid import MRImageStorage
 from sqlalchemy import func, select, update
 
+from ..analysis.image_quality import default_registry, load_slice_pixels
 from ..analysis.metadata_normalizer import MetadataRecord
 from ..analysis.series_aggregator import group_acquisitions
 from ..config import ReceiverConfig
@@ -124,12 +125,33 @@ class AnalysisWorker:
 
         if not study_exists:
             self.history.begin_study(study_uid, self.protocol, actor=ACTOR)
+        groups = group_acquisitions(tuple(records))
+
+        # Build sop_uid → storage path map for pixel loading
+        sop_to_id = {instance.sop_uid: instance.id for instance, _ in inputs}
+        image_findings: dict[str, tuple] = {}
+        registry = default_registry()
+        for group in groups:
+            try:
+                slices = tuple(
+                    sl
+                    for record in group.members
+                    for sop_uid in [record.known("SOPInstanceUID")]
+                    if sop_uid and sop_uid in sop_to_id
+                    and (sl := load_slice_pixels(self.storage.path(sop_to_id[sop_uid]))) is not None
+                )
+                if slices:
+                    image_findings[group.key] = registry.evaluate(slices)
+            except Exception:  # noqa: BLE001
+                pass  # pixel failure must never block metadata result
+
         self.history.save_evaluation(
             study_uid,
-            group_acquisitions(tuple(records)),
+            groups,
             request_id=uuid4().hex,
             actor=ACTOR,
             intake_job_ids=tuple(completed),
+            image_findings=image_findings or None,
         )
         return failures
 

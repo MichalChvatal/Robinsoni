@@ -41,7 +41,9 @@ class ArtifactDetector(ABC):
     artifact_type: str
 
     @abstractmethod
-    def detect(self, slices: tuple[SlicePixels, ...], *, role: str | None = None) -> ArtifactFinding:
+    def detect(
+        self, slices: tuple[SlicePixels, ...], *, role: str | None = None
+    ) -> ArtifactFinding:
         """Analyze an ordered stack of slices and return a structured finding."""
 
 

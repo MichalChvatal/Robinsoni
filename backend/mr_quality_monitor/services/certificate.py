@@ -12,14 +12,12 @@ Usage::
 
 from __future__ import annotations
 
-import hashlib
-import struct
+import contextlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pydicom
 from pydicom.dataset import Dataset, FileMetaDataset
-from pydicom.sequence import Sequence
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     SecondaryCaptureImageStorage,
@@ -218,10 +216,10 @@ def build_certificate(
     if operator:
         _draw_text(canvas, f"OPERATOR: {operator[:20].upper()}", 8, 72, _FG)
     protocol_name = ""
-    try:
-        protocol_name = evaluation.sequences[0].sequence_id.split("_")[0] if evaluation.sequences else ""
-    except Exception:
-        pass
+    if evaluation.sequences:
+        with contextlib.suppress(Exception):
+            protocol_name = evaluation.sequences[0].sequence_id.split("_")[0]
+    del protocol_name  # used only for future extension
 
     # Sequence rows
     row_y = 90
@@ -246,7 +244,9 @@ def build_certificate(
 
     # Footer
     _fill_rect(canvas, 0, _HEIGHT - 16, _WIDTH, _HEIGHT, (220, 226, 235))
-    _draw_text(canvas, f"MR.BUDDY AUTO-QC  STUDY:{study_uid[:30]}", 4, _HEIGHT - 12, (100, 110, 130))
+    _draw_text(
+        canvas, f"MR.BUDDY AUTO-QC  STUDY:{study_uid[:30]}", 4, _HEIGHT - 12, (100, 110, 130)
+    )
 
     pixel_data = _canvas_to_bytes(canvas)
 
@@ -311,11 +311,10 @@ def send_certificate(ds: Dataset, config: "ReceiverConfig") -> None:
     """Forward the certificate dataset to PACS via C-STORE."""
     if not config.pacs.enabled:
         return
-    from ..dicom.sender import send_dataset  # noqa: PLC0415
-
-    # Write to a temp file, then send
     import tempfile  # noqa: PLC0415
     from pathlib import Path  # noqa: PLC0415
+
+    from ..dicom.sender import send_dataset  # noqa: PLC0415
 
     with tempfile.NamedTemporaryFile(suffix=".dcm", delete=False) as tmp:
         tmp_path = Path(tmp.name)

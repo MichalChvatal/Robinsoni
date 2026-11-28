@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zipfile import ZipFile, is_zipfile
 
 from pydicom import dcmread
@@ -10,6 +11,9 @@ from pydicom.errors import InvalidDicomError
 from pynetdicom import AE
 
 from .storage import STORAGE_CLASSES, TRANSFER_SYNTAXES
+
+if TYPE_CHECKING:
+    from ..config import PacsConfig
 
 
 @dataclass
@@ -90,3 +94,16 @@ def send(
         if association.is_established:
             association.release()
     return result
+
+
+def send_dataset(path: Path, pacs: "PacsConfig") -> None:
+    """Send a single stored DICOM file to the configured PACS SCP."""
+    result = send(
+        (path,),
+        host=str(pacs.host),
+        port=pacs.port,
+        called_aet=pacs.called_aet,
+        calling_aet=pacs.calling_aet,
+    )
+    if result.failed:
+        raise ConnectionError(f"C-STORE failed: {result.last_status}")
