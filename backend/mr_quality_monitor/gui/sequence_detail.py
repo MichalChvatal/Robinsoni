@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QLabel,
+    QPushButton,
     QScrollArea,
     QStyle,
     QStyledItemDelegate,
@@ -241,6 +242,13 @@ class SequenceDetail(QWidget):
                 "Požadavek", "Stav", "Zdroj a důvod",
             ]
         )
+        self.show_valid = QPushButton("Zobrazit vyhovující")
+        self.show_valid.setCheckable(True)
+        self.show_valid.toggled.connect(self._filter_checks)
+        technical_layout.addWidget(self.show_valid, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.no_findings = QLabel("Všechny položky vyhovují.")
+        self.no_findings.hide()
+        technical_layout.addWidget(self.no_findings)
         self.metadata = QTreeWidget()
         self.metadata.setHeaderLabels(
             ["Parametr / snímek", "Hodnota", "Jednotka", "Dostupnost", "Zdroj"]
@@ -440,6 +448,7 @@ class SequenceDetail(QWidget):
                     item.setToolTip(uid_tooltip)
                 self.checks.setItem(index, column, item)
             color_item(self.checks.item(index, 4), check["status"])
+        self._filter_checks()
         fields = sorted({field for record in self.records for field in record.get("fields", {})})
         for field in fields:
             entries = [record["fields"].get(field, {}) for record in self.records]
@@ -474,6 +483,15 @@ class SequenceDetail(QWidget):
                 self.timeline.setItem(index, column, QTableWidgetItem(value))
             if status:
                 color_item(self.timeline.item(index, 2), status)
+
+    def _filter_checks(self):
+        visible = 0
+        for index in range(self.checks.rowCount()):
+            valid = self.checks.item(index, 4).data(STATUS_ROLE) == "GREEN"
+            hidden = valid and not self.show_valid.isChecked()
+            self.checks.setRowHidden(index, hidden)
+            visible += not hidden
+        self.no_findings.setVisible(self.checks.rowCount() > 0 and visible == 0)
 
     def _expand(self, item):
         field = item.data(0, Qt.ItemDataRole.UserRole)

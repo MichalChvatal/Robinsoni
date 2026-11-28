@@ -255,6 +255,16 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         assert "kritická" in window.detail.heading.text()
         assert "TR: 6000 ms" in window.detail.summary.text()
         assert window.detail.checks.rowCount() == 3
+        checks = window.detail.checks
+        assert not window.detail.show_valid.isChecked()
+        assert [
+            checks.item(index, 4).text()
+            for index in range(checks.rowCount()) if not checks.isRowHidden(index)
+        ] == [STATUS_TEXT["RED"]]
+        window.detail.show_valid.click()
+        assert all(not checks.isRowHidden(index) for index in range(checks.rowCount()))
+        window.detail.show_valid.click()
+        assert sum(not checks.isRowHidden(index) for index in range(checks.rowCount())) == 1
         assert window.detail.timeline.rowCount() == 1
         tree = window.detail.metadata
         window.detail.tabs.setCurrentIndex(window.detail.tabs.indexOf(tree))
@@ -272,6 +282,8 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         wait_for(app, lambda: not window.busy)
         assert window.detail.metadata.isExpanded(window.detail.metadata.indexFromItem(node))
         assert window.detail.tabs.currentWidget() is tree
+        assert not window.detail.show_valid.isChecked()
+        assert sum(not checks.isRowHidden(index) for index in range(checks.rowCount())) == 1
         assert window.row_key == "seq:DEMO_CRITICAL"
         window.detail_dialog.close()
         assert not window.detail_dialog.isVisible()
@@ -321,7 +333,8 @@ def test_basic_view_shows_issue_icons_inside_sequence_column(app, gui_demo, monk
         parameter_row,
         plan_role="Povinná",
         evaluations=tuple(
-            {**item, "image_required": True, "image_status": "GREEN"}
+            {**item, "image_required": True, "image_status": "GRAY",
+             "reasons": [*item["reasons"], "image_skipped_parameter_error"]}
             for item in parameter_row.evaluations
         ),
     )
@@ -368,7 +381,7 @@ def test_basic_view_shows_issue_icons_inside_sequence_column(app, gui_demo, monk
         assert window.sequence_table.item(0, 0).text() == parameter_row.name
         assert window.sequence_table.item(1, 0).text() == artifact_row.name
         assert window.sequence_table.item(2, 0).text() == f"{warning_row.name} (nepovinná)"
-        assert issues(0) == [(False, "RED")]
+        assert issues(0) == [(False, "RED"), (True, "GRAY")]
         assert issues(1) == [(False, "GREEN"), (True, "RED")]
         assert issues(2) == [(False, "ORANGE"), (True, "ORANGE")]
         assert issues(3) == [(False, "GREEN")]
@@ -455,9 +468,9 @@ def test_basic_view_shows_issue_icons_inside_sequence_column(app, gui_demo, monk
         reader.snapshot = replace(reader.snapshot, stale=True)
         window.refresh()
         wait_for(app, lambda: window.display_stale)
-        assert issues(0) == [(False, "RED")]
+        assert issues(0) == [(False, "RED"), (True, "GRAY")]
         assert issues(1) == [(True, "RED")]
-        assert issues(2) == []
+        assert issues(2) == [(True, "GRAY")]
         assert issues(3) == []
         assert issues(4) == []
     finally:
@@ -565,8 +578,12 @@ def test_requirements_group_common_values_and_keep_image_exceptions(app, gui_dem
     assert "1.2.10" in table.item(2, 1).text()
 
 
+@pytest.mark.parametrize(
+    "tr,parameter_status,image_allowed",
+    [(4000, "GREEN", True), (3200, "ORANGE", True), (6000, "RED", False), (None, "GRAY", False)],
+)
 def test_image_findings_are_per_image_after_processing_and_finalization(
-    app, tmp_path, image, protocol_data,
+    app, tmp_path, image, protocol_data, monkeypatch, tr, parameter_status, image_allowed,
 ):
     from array import array
 
@@ -585,10 +602,21 @@ def test_image_findings_are_per_image_after_processing_and_finalization(
         100 if 8 <= r < 24 and 8 <= c < 24 else 0
         for r in range(32) for c in range(32)
     )).tobytes()
-    image.RepetitionTime, image.EchoTime = 4000, 100
+    if tr is not None:
+        image.RepetitionTime = tr
+    image.EchoTime = 100
     image.PixelSpacing, image.SliceThickness = [0.5, 0.5], 3
     image.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
     storage = Storage(tmp_path, 0)
+    worker_module = importlib.import_module("mr_quality_monitor.services.analysis_worker")
+    load_pixels = worker_module.load_slice_pixels
+    pixel_reads = []
+
+    def tracked_pixels(*args, **kwargs):
+        pixel_reads.append(args[0])
+        return load_pixels(*args, **kwargs)
+
+    monkeypatch.setattr(worker_module, "load_slice_pixels", tracked_pixels)
     try:
         uids = set()
         for position in (0, 3, 6):
@@ -600,6 +628,7 @@ def test_image_findings_are_per_image_after_processing_and_finalization(
             storage.receive(member, str(member.file_meta.TransferSyntaxUID), "MR_TEST", "127.0.0.1")
         with open_worker(tmp_path, protocol) as worker:
             assert worker.run_once(Event()) == 0
+            assert len(pixel_reads) == (3 if image_allowed else 0)
             reader = MonitorReader(tmp_path)
             view = reader.read()
             detail_module = importlib.import_module("mr_quality_monitor.gui.sequence_detail")
@@ -609,6 +638,19 @@ def test_image_findings_are_per_image_after_processing_and_finalization(
                 assert not snapshot.stale and snapshot.pending == 0
                 row = snapshot.rows[0]
                 detail.show_row(row)
+                assert row.evaluations[0]["metadata_status"] == parameter_status
+                if not image_allowed:
+                    assert row.evaluations[0]["image_status"] == "GRAY"
+                    assert not any(
+                        check["rule_id"].startswith("image:")
+                        for check in row.evaluations[0]["checks"]
+                    )
+                    reason = (
+                        "image_skipped_parameter_error" if parameter_status == "RED"
+                        else "image_waiting_for_parameters"
+                    )
+                    assert reason in row.evaluations[0]["reasons"]
+                    return
                 for field in ("low_snr", "slab_discontinuity", "motion_ghosting"):
                     parent = next(
                         check for check in row.evaluations[0]["checks"] if check["field"] == field

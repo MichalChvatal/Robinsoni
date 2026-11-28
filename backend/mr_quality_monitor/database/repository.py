@@ -528,6 +528,10 @@ class HistoryRepository:
                     )
                 # Persist artifact findings for this acquisition
                 for finding in (image_findings or {}).get(result.group_key, ()):
+                    if not any(
+                        check.rule_id == f"image:{finding.detector_id}" for check in result.checks
+                    ):
+                        continue
                     import json as _json  # noqa: PLC0415
                     session.add(
                         ArtifactFindingRow(

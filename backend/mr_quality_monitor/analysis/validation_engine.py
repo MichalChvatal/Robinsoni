@@ -188,7 +188,13 @@ def evaluate(
                     action="Review geometry findings",
                 )
             )
-        if image_findings is not None and image_required:
+        metadata = aggregate(tuple(check.status for check in checks))
+        if image_required and metadata not in {"GREEN", "ORANGE"}:
+            reasons.append(
+                "image_skipped_parameter_error" if metadata == "RED"
+                else "image_waiting_for_parameters"
+            )
+        if image_findings is not None and image_required and metadata in {"GREEN", "ORANGE"}:
             for finding in image_findings:
                 checks.append(
                     CheckResult(
@@ -216,9 +222,6 @@ def evaluate(
                 clinical_quality_evaluated = protocol.mode == "CLINICAL" and any(
                     item.status != "GRAY" for item in image_findings
                 )
-        metadata = aggregate(
-            tuple(check.status for check in checks if not check.rule_id.startswith("image:"))
-        )
         if definition.completion.mode == "expected_count":
             identities = {
                 (record.known("SOPInstanceUID"), record.frame_index) for record in group.members
@@ -467,16 +470,41 @@ def evaluate_study(
     time = evaluation_time(evaluated_at)
     timestamp = datetime.fromisoformat(time)
     profile = snapshot.protocol.prostate_checks
+    ordered_groups = sorted(groups, key=lambda item: item.key)
     results = tuple(
         evaluate(
             group,
             snapshot,
             completion=completions.get(group.key) or (finalization if profile else None),
-            image_findings=image_findings.get(group.key),
             evaluated_at=timestamp,
         )
-        for group in sorted(groups, key=lambda item: item.key)
+        for group in ordered_groups
     )
+    blocked = {}
+    for result in results:
+        if result.sequence_id and result.image_required and result.metadata_status not in {
+            "GREEN", "ORANGE",
+        }:
+            reason = (
+                "image_skipped_parameter_error" if result.metadata_status == "RED"
+                else "image_waiting_for_parameters"
+            )
+            if blocked.get(result.sequence_id) != "image_skipped_parameter_error":
+                blocked[result.sequence_id] = reason
+    evaluated = []
+    for group, result in zip(ordered_groups, results, strict=True):
+        if result.sequence_id in blocked:
+            result = replace(
+                result, reasons=tuple(sorted(set((*result.reasons, blocked[result.sequence_id])))),
+            )
+        elif group.key in image_findings:
+            result = evaluate(
+                group, snapshot,
+                completion=completions.get(group.key) or (finalization if profile else None),
+                image_findings=image_findings[group.key], evaluated_at=timestamp,
+            )
+        evaluated.append(result)
+    results = tuple(evaluated)
     if profile:
         results = prostate_alignment(results, groups, profile)
     study_checks = evaluate_study_rules(

@@ -506,6 +506,9 @@ class MainWindow(QMainWindow):
                     )
                     if layer_status in {"RED", "ORANGE"} or (
                         not image and layer_status == "GREEN"
+                    ) or (
+                        image and layer_status == "GRAY"
+                        and any(item.get("image_required", True) for item in row.evaluations)
                     ):
                         issues.append((image, layer_status))
                         title = "Obraz" if image else "Parametry"

@@ -13,8 +13,9 @@ from sqlalchemy import exists, func, select, update
 from ..analysis.image_quality import default_registry, load_slice_pixels
 from ..analysis.image_quality.base import ArtifactFinding
 from ..analysis.metadata_normalizer import MetadataRecord
-from ..analysis.sequence_identifier import identify, match_study_protocol
+from ..analysis.sequence_identifier import match_study_protocol
 from ..analysis.series_aggregator import group_acquisitions
+from ..analysis.validation_engine import evaluate_study
 from ..config import ReceiverConfig
 from ..database.models import AnalysisJob, DicomInstance, Study, SystemEvent
 from ..database.repository import HistoryRepository
@@ -174,6 +175,9 @@ class AnalysisWorker:
             if defer_new_study and protocol.study_identifiers:
                 return failures
         groups = group_acquisitions(tuple(records))
+        parameter_results = {
+            result.group_key: result for result in evaluate_study(groups, snapshot).acquisitions
+        }
 
         sop_to_id = {instance.sop_uid: instance.id for instance, _ in inputs}
         image_findings: dict[str, tuple[ArtifactFinding, ...]] = {}
@@ -188,8 +192,13 @@ class AnalysisWorker:
                 with self.sessions() as session:
                     if session.get(DicomInstance, inputs[0][0].id) is None:
                         return 0
-            sequence = definitions.get(identify(group, snapshot.protocol).sequence_id)
+            parameters = parameter_results[group.key]
+            sequence = definitions.get(parameters.sequence_id)
             if sequence is None or not sequence.image_required:
+                continue
+            if any(reason in parameters.reasons for reason in (
+                "image_skipped_parameter_error", "image_waiting_for_parameters",
+            )):
                 continue
             try:
                 slices = tuple(

@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
+from mr_quality_monitor.analysis.image_quality.base import ArtifactFinding
 from mr_quality_monitor.analysis.sequence_identifier import identify
 from mr_quality_monitor.analysis.series_aggregator import group_acquisitions
 from mr_quality_monitor.analysis.validation_engine import (
@@ -65,6 +66,33 @@ def test_green_metadata_only_demo_has_details(images, protocol_data):
     assert evaluation.completion_details["actual_members"] == 3
     assert evaluation.protocol_sha256 == snapshot(protocol_data).sha256
     json.dumps(evaluation.to_dict(), allow_nan=False)
+
+
+def test_parameter_error_blocks_image_results_for_all_repeated_acquisitions(images, protocol_data):
+    protocol_data["sequences"][0]["image_required"] = True
+    good = group(images)
+    repeats = deepcopy(images)
+    series_uid = generate_uid()
+    for member in repeats:
+        member.SeriesInstanceUID = series_uid
+        member.SOPInstanceUID = generate_uid()
+    repeats[1].RepetitionTime = 6000
+    bad = group(repeats)
+    cached = ArtifactFinding("low_snr", "low_snr", "GREEN", "snr_acceptable", 100, {})
+    protocol = snapshot(protocol_data)
+    result = evaluate_study(
+        (good, bad), protocol,
+        image_findings={good.key: (cached,), bad.key: (cached,)},
+    )
+    assert {item.metadata_status for item in result.acquisitions} == {"GREEN", "RED"}
+    assert all(
+        item.image_status == "GRAY" and "image_skipped_parameter_error" in item.reasons
+        and not any(check.rule_id.startswith("image:") for check in item.checks)
+        for item in result.acquisitions
+    )
+    direct = evaluate(bad, protocol, image_findings=(cached,))
+    assert direct.image_status == "GRAY"
+    assert not direct.clinical_quality_evaluated
 
 
 @pytest.mark.parametrize(

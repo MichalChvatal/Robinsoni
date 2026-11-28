@@ -15,6 +15,8 @@ COLORS = {
     "GRAY": ("#edf0f4", "#536173"),
 }
 REASONS = {
+    "image_skipped_parameter_error": "Obrazová kontrola vynechána kvůli chybě parametrů",
+    "image_waiting_for_parameters": "Obrazová kontrola čeká na ověření parametrů",
     "no_previous_slice_for_slab_check": "První řez nemá předchozí řez pro porovnání návaznosti",
     "received_all_repeats_retained": "Přijato; všechny dílčí akvizice zachovány",
     "required_sequence_pending": "Požadovaná sekvence zatím nebyla vyhodnocena",
@@ -175,6 +177,12 @@ def sequence_layer(row, *, image: bool, stale: bool) -> tuple[str, str, str]:
     tooltip = "\n\n".join(dict.fromkeys(critical_description(check) for check in checks))
     if not tooltip:
         tooltip = reason_text(row.reason) if not evaluations else STATUS_TEXT[status]
+        if image and status == "GRAY":
+            reasons = dict.fromkeys(
+                reason_text(reason) for item in evaluations for reason in item.get("reasons", ())
+                if reason in {"image_skipped_parameter_error", "image_waiting_for_parameters"}
+            )
+            tooltip = "\n".join(reasons) or "Obrazová kvalita zatím nebyla vyhodnocena."
     if stale:
         tooltip = "Čeká na aktualizaci hodnocení.\n" + tooltip
     return status, text, tooltip
