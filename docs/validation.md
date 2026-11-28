@@ -1,12 +1,12 @@
 # Validační engine a DEMO protokoly — etapa 4
 
-Engine propojuje normalizovaná metadata s konfigurovatelnými požadavky. Neprovádí
-obrazovou analýzu a nevydává skóre PI-QUAL. Aktuální schéma přijímá výhradně
-protokoly s explicitním `mode: DEMO`. Číselné hodnoty ukázky nejsou klinické limity.
+Tato kapitola popisuje validační engine na ukázkovém profilu `DEMO` ze čtvrté
+etapy. Pro aktuální běžné hodnocení aplikace používá profil `PROSTATE_MOU`
+v režimu `CLINICAL`. Číselné hodnoty ukázky nejsou klinické limity.
 
 ## Protokol a jeho snapshot
 
-Ukázka: `config/protocols/demo_mr.yaml`. Obsahuje identifikátor a verzi,
+Ukázka: `tests/fixtures/protocols/demo_mr.yaml`. Obsahuje identifikátor a verzi,
 autora/zdroj, seznam sekvencí, identifikátory, parametry a podmínky dokončení.
 Definice každé sekvence má `order`, povinnost, závažnost chybějící sekvence,
 požadavek na obrazovou kontrolu a politiku geometrických nálezů.
@@ -15,7 +15,7 @@ požadavek na obrazovou kontrolu a politiku geometrických nálezů.
 from pathlib import Path
 from mr_quality_monitor.protocols.manager import load_protocol, ProtocolManager
 
-snapshot = load_protocol(Path("config/protocols/demo_mr.yaml"))
+snapshot = load_protocol(Path("tests/fixtures/protocols/demo_mr.yaml"))
 manager = ProtocolManager()
 manager.register(snapshot)
 manager.select(snapshot.protocol.protocol_id, snapshot.protocol.version)

@@ -203,7 +203,9 @@ def evaluate(
                 )
             if image_findings:
                 image_status = aggregate(tuple(item.status for item in image_findings))
-                clinical_quality_evaluated = protocol.mode == "CLINICAL" or image_status != "GRAY"
+                clinical_quality_evaluated = protocol.mode == "CLINICAL" and any(
+                    item.status != "GRAY" for item in image_findings
+                )
         metadata = aggregate(
             tuple(check.status for check in checks if not check.rule_id.startswith("image:"))
         )

@@ -5,6 +5,8 @@ ae_title: MR_QUALITY
 allowed_calling_aet: MR_TEST
 allowed_peer_ip: 127.0.0.1
 storage_root: ../runtime
+single_active_study: true
+protocol_path: protocols
 minimum_free_bytes: 104857600
 maximum_associations: 4
 network_timeout_seconds: 30

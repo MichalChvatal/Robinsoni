@@ -1,13 +1,14 @@
 """Read-only, consistent SQLite snapshots and presentation data, without Qt."""
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pydicom.uid import MRImageStorage
 
 from ..database.repository import checked_content
 from ..services.receiver_health import read_health
+from .completion import ExaminationCompletion, examination_completion
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,8 @@ class MonitorRow:
     action: str = ""
     requirements: tuple[dict, ...] = ()
     checks: tuple[dict, ...] = ()
+    awaiting_analysis: bool = False
+    plan_role: str = ""
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,7 @@ class MonitorSnapshot:
     message: str = ""
     can_finalize: bool = False
     study_rows: tuple[MonitorRow, ...] = ()
+    completion: ExaminationCompletion | None = None
 
 
 def known(record: dict, name: str):
@@ -80,10 +84,13 @@ def empty_snapshot(health: dict, message: str, protocol=None) -> MonitorSnapshot
 class MonitorReader:
     """Never creates a database or runs migrations. Connections live for one read only."""
 
-    def __init__(self, root: Path, *, intake_protocol=None):
+    def __init__(self, root: Path, *, intake_protocol=None, single_active_study: bool = False):
         self.root = root
+        self.single_active_study = single_active_study
         self.intake_protocol = (
-            intake_protocol if (intake_protocol or {}).get("prostate_checks") else None
+            intake_protocol
+            if not single_active_study and (intake_protocol or {}).get("prostate_checks")
+            else None
         )
         self._cache_key = None
         self._cache = None
@@ -92,10 +99,10 @@ class MonitorReader:
         health = read_health(self.root)
         path = self.root / "intake.sqlite3"
         if not path.is_file():
-            if study_uid is not None:
+            if study_uid is not None and not self.single_active_study:
                 raise OSError("Selected study storage is unavailable")
             return empty_snapshot(
-                health, "Čeká na data — spusťte samostatný přijímač.", self.intake_protocol
+                health, "Čeká na první data z MR.", self.intake_protocol
             )
         connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
         connection.row_factory = sqlite3.Row
@@ -119,16 +126,21 @@ class MonitorReader:
                 "SELECT study_uid,MAX(stamp) AS last_seen FROM ("
                 "SELECT study_uid,received_at AS stamp FROM dicom_instances UNION ALL "
                 "SELECT study_uid,created_at AS stamp FROM studies) "
-                "GROUP BY study_uid ORDER BY last_seen DESC LIMIT 500"
+                "GROUP BY study_uid ORDER BY last_seen DESC LIMIT ?",
+                (1 if self.single_active_study else 500,),
             )
         ]
         if not studies:
-            if selected is not None:
+            self._cache_key = self._cache = None
+            if selected is not None and not self.single_active_study:
                 raise ValueError("Selected study is no longer available")
             return empty_snapshot(
-                health, "Zatím nebylo přijato žádné vyšetření.", self.intake_protocol
+                health, "Čeká na první data z MR.", self.intake_protocol
             )
-        if selected is None:
+        if self.single_active_study and selected != studies[0]["study_uid"]:
+            selected, selected_branch = studies[0]["study_uid"], None
+            self._cache_key = self._cache = None
+        elif selected is None:
             selected = studies[0]["study_uid"]
         elif selected not in {item["study_uid"] for item in studies}:
             old = db.execute(
@@ -154,7 +166,9 @@ class MonitorReader:
         )
         branch = next((item for item in branches if item["id"] == selected_branch), None)
         if selected_branch is not None and branch is None:
-            raise ValueError("Selected history branch is unavailable")
+            if not self.single_active_study:
+                raise ValueError("Selected history branch is unavailable")
+            self._cache_key = self._cache = None
         branch = branch or (branches[0] if branches else None)
         received = db.execute(
             "SELECT COUNT(*) FROM dicom_instances WHERE study_uid=?", (selected,)
@@ -190,9 +204,46 @@ class MonitorReader:
         rows = self._rows(db, selected, protocol, payload, group_records)
         study_rows = tuple(row for row in rows if row.key.startswith("study:"))
         rows = tuple(row for row in rows if not row.key.startswith("study:"))
-        if protocol and protocol.get("prostate_checks"):
+        live_protocol = bool(protocol and protocol.get("study_identifiers"))
+        if live_protocol or (protocol and protocol.get("prostate_checks")):
             study_rows += tuple(row for row in rows if not row.key.startswith("seq:"))
             rows = tuple(row for row in rows if row.key.startswith("seq:"))
+        if live_protocol:
+            rules = protocol.get("study_rules") or {}
+            alternatives = {rule["group"] for rule in rules.get("min_valid_groups", ())}
+            fallbacks = {
+                sid for rule in rules.get("fallback_groups", ())
+                for sid in rule["fallback_sequence_ids"]
+            }
+            roles = {
+                item["sequence_id"]: (
+                    "Povinná" if item["required"]
+                    else "Náhradní" if item["sequence_id"] in fallbacks
+                    else "Skupinový požadavek" if item["group"] in alternatives
+                    else "Nepovinná"
+                )
+                for item in protocol["sequences"]
+            }
+            pending_series = {
+                row.key.split(":", 1)[1]
+                for row in study_rows
+                if row.key.startswith(("raw:", "failed:"))
+            }
+            rows = tuple(
+                replace(
+                    row,
+                    plan_role=roles[row.key.removeprefix("seq:")],
+                    awaiting_analysis=any(
+                        known(record, "SeriesInstanceUID") in pending_series
+                        for record in row.records
+                    ),
+                )
+                for row in rows
+            )
+        completion = (
+            examination_completion(protocol, payload, rows, stale=stale, failed=failed)
+            if live_protocol else None
+        )
         history = self._history(db, branch["id"]) if branch else ()
         records = tuple(record for members in group_records.values() for record in members)
         date = next(
@@ -219,6 +270,8 @@ class MonitorReader:
         message = ""
         if failed:
             message = f"Analýza selhala u {failed} MR objektů. Zkontrolujte lokální úložiště."
+        elif self.single_active_study and not branch:
+            message = "Rozpoznává se protokol vyšetření."
         elif stale:
             message = "Čeká na zpracování nebo přehodnocení dat."
         elif payload.get("finalized") and protocol and (
@@ -246,13 +299,16 @@ class MonitorReader:
             message,
             bool(
                 protocol
-                and (protocol.get("prostate_checks") or protocol.get("study_rules"))
+                and (
+                    live_protocol or protocol.get("prostate_checks") or protocol.get("study_rules")
+                )
                 and branch
                 and branch["label"] == "main"
                 and not stale
                 and not payload.get("finalized")
             ),
             study_rows,
+            completion,
         )
 
     def _run_data(self, db, run):

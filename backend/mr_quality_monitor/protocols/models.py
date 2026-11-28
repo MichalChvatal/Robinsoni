@@ -39,6 +39,10 @@ class Contains(FrozenModel):
     case_sensitive: StrictBool = True
 
 
+class Excludes(Contains):
+    kind: Literal["excludes"]
+
+
 class Range(FrozenModel):
     kind: Literal["range"]
     minimum: float = Field(strict=True)
@@ -80,7 +84,7 @@ class Limit(FrozenModel):
 
 
 Constraint = Annotated[
-    Exact | OneOf | Contains | Range | Target | Limit, Field(discriminator="kind")
+    Exact | OneOf | Contains | Excludes | Range | Target | Limit, Field(discriminator="kind")
 ]
 
 
@@ -195,6 +199,7 @@ class SequenceDefinition(FrozenModel):
     group: str | None = None
     role: str | None = None
     identifiers: tuple[Predicate, ...] = Field(min_length=2)
+    any_identifiers: tuple[Predicate, ...] = ()
     parameters: tuple[ParameterRule, ...] = ()
     completion: CompletionRule = CompletionRule()
     image_required: StrictBool = True
@@ -234,32 +239,49 @@ class ProstateChecks(FrozenModel):
 
 
 class Protocol(FrozenModel):
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     protocol_id: Identifier
     version: Identifier
     mode: Literal["DEMO", "CLINICAL"]
     display_name: str = Field(min_length=1)
-    author: str = Field(min_length=1)
+    author: str | None = Field(default=None, min_length=1)
     source: str = Field(min_length=1)
     approved_by: str | None = None
     sequences: tuple[SequenceDefinition, ...] = Field(min_length=1)
     study_rules: StudyRules | None = None
     prostate_checks: ProstateChecks | None = None
+    study_identifiers: tuple[Predicate, ...] = ()
 
     @model_validator(mode="after")
     def unique_definitions(self):
         if self.schema_version == 1 and self.mode != "DEMO":
             raise ValueError("schema_version 1 supports only DEMO mode")
         if self.schema_version == 1 and (
-            self.approved_by is not None or self.study_rules is not None
+            self.approved_by is not None or self.study_rules is not None or self.study_identifiers
         ):
             raise ValueError("Clinical fields require schema_version 2")
-        if self.mode == "CLINICAL" and not (self.approved_by and self.approved_by.strip()):
+        if any(
+            predicate.field not in {
+                "StudyDescription", "ProtocolName", "SeriesDescription", "BodyPartExamined"
+            }
+            for predicate in self.study_identifiers
+        ):
+            raise ValueError("Study identifiers must use examination or protocol names")
+        if self.schema_version < 3 and self.author is None:
+            raise ValueError("Protocol author is required")
+        if self.schema_version == 2 and self.mode == "CLINICAL" and not (
+            self.approved_by and self.approved_by.strip()
+        ):
             raise ValueError("CLINICAL protocol requires approved_by")
         if len({item.sequence_id for item in self.sequences}) != len(self.sequences):
             raise ValueError("Duplicate sequence IDs")
         if len({item.order for item in self.sequences}) != len(self.sequences):
             raise ValueError("Duplicate sequence order")
+        if self.study_identifiers and self.study_rules is not None:
+            sequence_ids = {item.sequence_id for item in self.sequences}
+            for rule in self.study_rules.fallback_groups:
+                if not set(rule.primary_sequence_ids + rule.fallback_sequence_ids) <= sequence_ids:
+                    raise ValueError("Fallback rule references an unknown sequence")
         if self.prostate_checks and not {
             "T2_SAG",
             "T2_COR",

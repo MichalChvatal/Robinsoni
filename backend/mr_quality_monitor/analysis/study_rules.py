@@ -255,20 +255,15 @@ def _eval_coverage(
             "segmentation_not_present",
             {"segmentation_sequence_id": rule.segmentation_sequence_id},
         )
-    seg_group = seg_entries[-1][1]
     if seg_bounds_mm is None:
-        if not seg_group.projected_positions_mm:
-            return StudyCheckResult(
-                rule.rule_id,
-                "anatomical_coverage",
-                "GRAY",
-                "segmentation_geometry_missing",
-                {},
-            )
-        seg_min = min(seg_group.projected_positions_mm)
-        seg_max = max(seg_group.projected_positions_mm)
-    else:
-        seg_min, seg_max = seg_bounds_mm
+        return StudyCheckResult(
+            rule.rule_id,
+            "anatomical_coverage",
+            "GRAY",
+            "segmentation_mask_bounds_unavailable",
+            {"segmentation_sequence_id": rule.segmentation_sequence_id},
+        )
+    seg_min, seg_max = seg_bounds_mm
     uncovered = {}
     checked = {}
     for sid in rule.target_sequence_ids:

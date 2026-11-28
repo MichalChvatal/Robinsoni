@@ -278,9 +278,9 @@ class SlabDiscontinuityDetector(ArtifactDetector):
             return ArtifactFinding(
                 self.detector_id,
                 self.artifact_type,
-                "GREEN" if slices else "GRAY",
+                "GRAY",
                 "too_few_slices_for_slab_check" if slices else "no_pixel_data",
-                0.0 if slices else None,
+                None,
                 {"max_jump_ok": self.max_jump_ok, "max_jump_crit": self.max_jump_crit},
             )
         means = []

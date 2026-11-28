@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import load_config
 from .dicom.listener import Listener
+from .protocols.manager import load_protocol_candidates
 from .services.shutdown import shutdown_event
 
 
@@ -41,10 +42,13 @@ def configure_logging(root: Path, *, filename: str = "receiver.log", console: bo
 def main() -> int:
     parser = argparse.ArgumentParser(description="Local MR DICOM receiver (stage 2)")
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--protocol", type=Path)
     parser.add_argument("--stop-file", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
         config = load_config(args.config)
+        protocol_path = args.protocol or config.protocol_path
+        protocols = load_protocol_candidates(protocol_path) if protocol_path else ()
     except Exception as error:
         print(f"Configuration could not be loaded ({type(error).__name__})")
         return 2
@@ -55,7 +59,7 @@ def main() -> int:
         return 2
     stopped = shutdown_event(args.stop_file)
     logger = logging.getLogger("mr_quality_monitor.receiver")
-    listener = Listener(config)
+    listener = Listener(config, protocols=protocols)
     try:
         listener.start()
         stopped.wait()

@@ -1,12 +1,36 @@
 import json
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 import yaml
+from mr_quality_monitor.analysis.sequence_identifier import identify
+from mr_quality_monitor.analysis.series_aggregator import group_acquisitions
+from mr_quality_monitor.dicom.metadata_parser import parse_dataset
 from mr_quality_monitor.protocols.manager import ProtocolManager, ProtocolSnapshot, load_protocol
 from mr_quality_monitor.protocols.models import Protocol
 from pydantic import ValidationError
+
+
+def test_pirads_identifies_dce_and_checks_the_high_b_boundary(image):
+    protocol = load_protocol(Path("config/protocols/prostate_pirads_v2_1.yaml")).protocol
+    image.ImageType = ["ORIGINAL", "PRIMARY"]
+    image.SeriesDescription = "DCE T1 dynamic"
+    image.ProtocolName = "DCE T1 dynamic"
+
+    def identified_sequence():
+        group, = group_acquisitions(parse_dataset(image))
+        return identify(group, protocol).sequence_id
+
+    assert identified_sequence() == "DCE_T1"
+    image.ImageType = ["DERIVED", "PRIMARY", "DIFFUSION"]
+    image.SeriesDescription = "dwi high"
+    image.ProtocolName = "dwi high"
+    image.DiffusionBValue = 1399
+    assert identified_sequence() is None
+    image.DiffusionBValue = 1400
+    assert identified_sequence() == "DWI_HIGH_B"
 
 
 @pytest.mark.parametrize("extension", ["json", "yaml", "yml"])
@@ -22,6 +46,15 @@ def test_load_and_hash_are_format_independent(tmp_path, protocol_data, extension
         snapshot.content = "changed"
     with pytest.raises(ValidationError):
         snapshot.protocol.version = "changed"
+
+
+def test_load_rejects_unavailable_image_check(tmp_path, protocol_data):
+    protocol_data["sequences"][0]["image_required"] = True
+    protocol_data["sequences"][0]["image_checks"] = ["low_snr", "typo"]
+    path = tmp_path / "protocol.yml"
+    path.write_text(yaml.safe_dump(protocol_data), encoding="utf-8")
+    with pytest.raises(ValueError, match="Unknown image check IDs: typo"):
+        load_protocol(path)
 
 
 @pytest.mark.parametrize(
@@ -160,7 +193,7 @@ def test_snapshot_and_manager_pin_active_study(protocol_data):
 def test_shipped_demo_loads():
     from pathlib import Path
 
-    snapshot = load_protocol(Path("config/protocols/demo_mr.yaml"))
+    snapshot = load_protocol(Path("tests/fixtures/protocols/demo_mr.yaml"))
     assert snapshot.protocol.mode == "DEMO"
 
 

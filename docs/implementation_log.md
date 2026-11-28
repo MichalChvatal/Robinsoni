@@ -424,3 +424,145 @@ metadat, enginu a historie, kompletní workflow a lokální spuštění komponen
 - Z 240 testů prošlo 226 v prvním běhu. Další tři testy spouštění podprocesů
   prošly po opravě místní `.venv`. Zbývajících 11 testů zastavilo omezení
   síťového spojení popsané výše.
+
+## 2026-11-28 - PROSTATE_MOU 1.1
+
+- Produkční vstupní bod analýzy předává workeru konfiguraci priorit
+  privátních DICOM tagů a zapisuje ID, verzi a režim protokolu do logu.
+- Profil `PROSTATE_MOU` výslovně uvádí detektory pro T2W, DWI, ADC a RESOLVE.
+  Načtení YAML odmítne neznámý identifikátor detektoru.
+- Kontrola pokrytí ukáže šedý stav, pokud chybí ověřený rozsah z pixelů
+  segmentační masky. Rozsah celé série se v takovém případě nepoužije.
+- Regrese MR50000 spouští běžné CLI workeru s čistým lokálním úložištěm
+  a ověřuje zdroj b-hodnoty, nálezy detektorů a jejich zachování po uzavření.
+
+## 2026-11-28 - Live examination workflow and completeness
+
+- **Baseline reviewed.** The repository already has single-study replacement,
+  manual finalization, and validation reasons for missing required sequences.
+  The receiver restores the latest study on startup, and the worker uses the
+  protocol supplied by the launcher. The GUI reports that a study was closed
+  but does not explicitly report whether the planned sequences were completed.
+- **Plan updated.** [The continuation plan](plan_continuation.md) defines the
+  live checklist, examination-level completion verdict, handling of optional
+  sequences and fallbacks, and invalidation when late or replacement data arrive.
+- **Existing behavior verified.** Five focused regressions passed. They cover
+  a required sequence missing at closure, a partial acquisition, an ambiguous
+  match, late data reopening the same examination, and replacement during
+  analysis. The default pytest temporary directory blocked two fixture setups
+  on the first run. A rerun using a workspace temporary directory passed all five.
+- **Pending.** Implement startup reset and protocol identification first, then
+  connect the YAML sequence plan and completion verdict to the live GUI.
+  Run the full workflow verification and record the results here.
+- **Startup and protocol detection implemented.** A new single-study receiver
+  session clears managed study data before listening. Only MR images can start
+  or replace a study. The worker selects and pins a unique configured protocol
+  based on its YAML matching criteria. Both local archives use the same prostate
+  Study Description. Verification follows after the GUI is connected.
+- **Live checklist and verdict connected.** The monitor now shows planned
+  sequence roles, outstanding requirements, and an explicit completion verdict.
+  A new study clears the checklist, and late data invalidate a finalized verdict.
+- **First regression pass.** 113 tests passed. Two network tests could not open
+  a loopback DICOM association in this environment (Windows 10013). Added a
+  desktop walkthrough and replay cases for the full local archive and a copy
+  with DWI low-b removed.
+- **Desktop and archive replay.** The Qt walkthrough reached DONE, invalidated
+  it on a late image, showed Warning and Error as analysis ran, and reached
+  INCOMPLETE on replacement with a required sequence missing. Replay with
+  DWI low-b removed named that sequence. The full 321-object archive also
+  yielded INCOMPLETE under the existing clinical rules. It contained all
+  required sequences, but only one qualifying T2W plane and no acceptable
+  substitute for the failing DWI set. The full-archive test now checks that
+  difference explicitly.
+- **Completion rules and closure race verified.** The focused tests passed
+  for a valid RESOLVE fallback, a missing or ambiguous T2W alternative, a
+  failed analysis, and a second study arriving before the first study's
+  closure could commit. A partial T2W acquisition also remained incomplete.
+- **Regression verification finished.** 236 tests passed in the full run,
+  including both local MR50000 replays and the Qt walkthrough. The closure
+  race test was added after that run started and passed separately. All 11
+  failures were blocked at DICOM TCP loopback association setup (Windows
+  10013). Ruff and the Git whitespace check passed.
+
+## 2026-11-28 - Start a clean session when reopening the desktop app
+
+- Closing the main window left the receiver running. The next desktop launch
+  reused it, so startup retention did not run and the previous study reappeared.
+- The desktop launcher now restarts its managed receiver and analysis before
+  opening the main window in single-study mode. The sender and headless launcher
+  continue to reuse a running session.
+- Five focused tests passed. The launcher regression used real receiver and
+  worker processes, verified that opening the sender preserved the study, and
+  verified that the next desktop launch showed an empty monitor and removed
+  the prior DICOM objects. Ruff and the Git whitespace check passed.
+
+## 2026-11-28 - Use prostate_v2.yml for prostate examinations
+
+- Switched the Windows launcher to `config/protocols/prostate_v2.yml`
+  (`PROSTATE_CLINICAL_MULTIVENDOR`). The earlier profile remains available
+  as a regression fixture.
+- Added schema 3 support, DICOM body part, orientation derived from slice
+  geometry, and alternative identification predicates. The new YAML keeps
+  its supplied validation limits and uses the configured Siemens b-value
+  fallback when the standard attribute is absent.
+- Header replay of MR50000 matched all three T2W planes, all four primary
+  DWI components, and both planned segmentation rows.
+- The analytical CLI and monitor replay of MR50000 passed, along with
+  113 other focused tests. The separate legacy-profile archive regression
+  also passed. PowerShell parsing confirmed the default path. Ruff and the
+  Git whitespace check passed.
+
+## 2026-11-28 - Repeated DICOM transfers
+
+- The receiver log showed intentionally discarded objects. The receiver sends
+  `0xC212` for images of a replaced study or for supplementary objects outside
+  the active study. Repeated images of the current study are deduplicated.
+- The desktop sender now counts these objects separately and explains how to
+  start a new session when replaying an older study. Conflicting data with
+  the same SOP Instance UID still report `0xC211`.
+- 25 focused tests passed, including the sender/receiver replay with a
+  simulated association and the Qt status message. Ruff and the Git
+  whitespace check passed.
+
+## 2026-11-28 - Switch the active measurement when the protocol changes
+
+- The receiver now checks the shared clinical protocol catalogue before
+  discarding images from retired study UIDs. A unique different match
+  replaces the active data and results even when the DICOM Study Instance
+  UID is reused. The Windows launcher gives the receiver and worker the
+  same catalogue.
+- The worker validates its intake instance and writes to the selected
+  branch so in-flight analysis cannot repopulate the removed measurement.
+  The monitor clears its previous detail and refreshes the active branch.
+- 67 focused tests passed, including launcher startup, the real prostate
+  archive, and protocol replacement. An additional run verified ambiguous
+  metadata and replacement during analysis under the same study UID.
+  Ruff and the Git whitespace check passed. The catalogue currently
+  contains only the prostate profile. Switching between two profiles
+  was verified using synthetic profiles and the real storage and worker.
+
+## 2026-11-28 - Activate the prostate PI-RADS v2.1 reference profile
+
+- Activated `prostate_pirads_v2_1.yaml` in the shared receiver and worker
+  catalogue. The earlier prostate v2 profile moved to the test fixtures.
+- Added prostate study matching, T2W plane matching from DICOM orientation,
+  and high-b matching using the profile's existing 1400 s/mm2 threshold.
+  Kept the supplied ADC, DCE, and T2W validation settings and the reference
+  profile's documented scope.
+- 45 focused tests passed. MR50000 matched all three T2W planes, ADC,
+  and high-b DWI, and reported DCE as missing at closure. A synthetic
+  check verified DCE identification and the 1399/1400 s/mm2 boundary.
+  The previous profile's archive replay, protocol switching, launcher,
+  Ruff, and the Git whitespace check also passed.
+
+## 2026-11-28 - Show which image each requirement evaluated
+
+- Added the evaluated-data column to the sequence detail. Image checks
+  identify their acquisition, DICOM series and instance numbers when
+  available, and frame number for multiframe data. The full SOP Instance UID
+  is available in the tooltip, and the metadata tree uses the same image label.
+- The table labels acquisition summaries, whole-study checks, and unevaluated
+  protocol requirements by scope. It collapses identical checks within one
+  acquisition and keeps distinct images, frames, and acquisitions visible.
+- Ten GUI tests passed, including source labels, multiframe data, and
+  duplicate suppression. Ruff and the Git whitespace check passed.

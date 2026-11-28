@@ -71,7 +71,7 @@ from mr_quality_monitor.protocols.manager import load_protocol
 engine, sessions = open_database(Path("runtime/intake.sqlite3"))
 try:
     history = HistoryRepository(sessions)
-    snapshot = load_protocol(Path("config/protocols/demo_mr.yaml"))
+    snapshot = load_protocol(Path("tests/fixtures/protocols/demo_mr.yaml"))
     branch = history.begin_study(study_uid, snapshot, actor="local_operator")
     # groups obsahuje výstup parseru/seskupování skutečně přijatých souborů.
     run_id = history.save_evaluation(

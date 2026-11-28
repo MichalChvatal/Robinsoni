@@ -1,4 +1,90 @@
-# Continuation Plan — Robinsoni Prototype 2 → Working State
+# Continuation Plan
+
+## Live MR examination and completeness
+
+**Status as of 2026-11-28:** Startup reset, protocol identification, live
+sequence rows, completion verdicts, and study replacement are implemented.
+The desktop walkthrough, archive replays, and replacement race checks passed.
+DICOM C-STORE loopback verification is blocked by Windows 10013 in the test
+environment. See the [implementation log](implementation_log.md) for results.
+
+### 1. Start with an empty examination
+
+- Clear the previous session's managed DICOM objects, analysis jobs, and study
+  results before accepting data. Starting the desktop app through the launcher
+  creates a new session, including after closing and reopening the main window.
+  Opening the sender uses the existing session.
+- Show **Waiting for first data from MR** with an empty sequence table.
+
+### 2. Identify the protocol and show the plan
+
+- Match MR headers against examination-identification criteria in the configured
+  clinical YAML files. Use `prostate_pirads_v2_1.yaml` for prostate examinations.
+  If the first image is a generic localizer or the match is ambiguous, show
+  **Identifying protocol** and retry as more images arrive.
+- Pin the selected YAML version to the examination. Populate gray rows in YAML
+  order for required, alternative, and conditional sequences. Evaluate images
+  already received for this examination.
+- Update rows to **OK**, **Warning**, or **Error** from the existing clinical
+  checks. Keep unreceived and unverified rows gray while the study is open.
+  Show confirmed results for other series while an independent series processes.
+
+### 3. Verify examination completeness
+
+- Add an examination-level completion verdict alongside the per-sequence
+  quality statuses. Use the current validation result and its pinned YAML to
+  list outstanding requirements during acquisition and refresh the list as
+  more data are analyzed.
+- Account for required sequences, minimum group counts, and fallback rules.
+  For the PI-RADS reference profile, show the remaining T2W plane count
+  and outstanding ADC, high-b DWI and DCE requirements. When a configured fallback satisfies
+  a requirement, name the fallback and retain its warning. Optional sequences
+  may be absent without blocking completion.
+- Reuse **Close examination** to confirm acquisition has ended. Finalize
+  against the latest study revision after all received MR images are processed.
+  Preserve the transactional guard against new data arriving during closure.
+- List confirmed missing sequences by YAML display name. For an unmet group
+  requirement, show the shortfall and eligible sequences. Distinguish missing
+  data, partial acquisitions, ambiguous matches, and failed checks. Use the
+  YAML and validation logic to determine which findings prevent completion.
+
+| Completion state | When it applies |
+|---|---|
+| **In progress** | Acquisition is open. Show outstanding sequences and checks, or indicate that the examination is ready to close. |
+| **DONE** | Finalized against current results and all protocol completion requirements are met. Show any accepted warnings alongside the verdict. |
+| **INCOMPLETE** | Finalized with a confirmed missing sequence or other confirmed unmet completion requirement. Show exactly what is missing or unmet. |
+| **Verification pending** | Current results cannot establish completion. Show the analysis or identification issue that needs resolution. |
+
+### 4. Replace or reopen the examination as data arrive
+
+- When the first valid MR image with a new `StudyInstanceUID` is accepted,
+  retire the previous study's local data, queued analysis, and results.
+  Clear its sequence plan, completion verdict, and open sequence details.
+- A uniquely identified different protocol also starts a new measurement
+  when the scanner reuses a current or previously seen study UID. Skip
+  late images from retired UIDs when they do not establish a protocol change.
+  Ignore analysis results from replaced measurements.
+  Identify the new protocol and rebuild all rows, even if both examinations
+  use the same YAML.
+- If new images arrive for the same finalized study, invalidate its completion
+  verdict and return to **In progress** until it is evaluated and closed again.
+
+### 5. Verify the full workflow
+
+- Exercise receiver, worker, and GUI together. Cover startup with data from
+  a previous session, an inconclusive localizer followed by a recognizable
+  prostate image, and gray rows progressing to each quality outcome.
+- Verify **DONE**, a named missing required sequence, an absent optional
+  sequence, an unmet T2W group count, a valid RESOLVE fallback, ambiguous
+  identification, a partial series, and failed or unfinished analysis.
+- Verify that late images invalidate the same study's verdict and that a new
+  study arriving during analysis or closure inherits no rows or verdict.
+  Replay a complete local prostate dataset and a copy with a required
+  sequence omitted. Log expected and observed outcomes and test results.
+
+---
+
+## Prototype 2 integration notes
 
 ## Goal
 Prototype 2 (commit `8da89613`) implemented all major features but introduced **15 failing tests** and **25 lint errors** due to integration gaps. This plan fixes those gaps with **minimal new code** — no redesign, no rewrites.
@@ -160,12 +246,12 @@ for group in groups_snap:
 ### 7 · Update `run_windows.ps1` to support prostate_mou.yaml
 
 #### [MODIFY] run_windows.ps1
-Change the hard-coded protocol argument on line 70 to accept `$Protocol` parameter with default `demo_mr.yaml`:
+The launcher accepts a `$Protocol` parameter with `prostate_mou.yaml` as its default:
 
 ```powershell
 param(
     ...
-    [string]$Protocol = 'config/protocols/demo_mr.yaml'
+    [string]$Protocol = 'config/protocols/prostate_mou.yaml'
 )
 # Line 70:
 $launchArgs = @('-X', 'utf8', '-m', 'mr_quality_monitor.launcher', $Action,

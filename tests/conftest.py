@@ -91,7 +91,7 @@ def gui_demo(tmp_path):
     from mr_quality_monitor.protocols.manager import load_protocol
 
     root = tmp_path / "gui-demo"
-    snapshot = load_protocol(Path("config/protocols/gui_demo.yaml"))
+    snapshot = load_protocol(Path("tests/fixtures/protocols/gui_demo.yaml"))
     uid = seed_demo(root, snapshot)
     return SimpleNamespace(
         root=root, uid=uid, snapshot=snapshot, config=ReceiverConfig(storage_root=root)

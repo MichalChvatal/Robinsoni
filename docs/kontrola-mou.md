@@ -1,10 +1,10 @@
 # Technická kontrola MRI prostaty MOÚ
 
-Po aktualizaci zastavte příjem přes **Zastavit prijem.cmd** a znovu otevřete
-**Spustit aplikaci.cmd**. Nová vyšetření se vyhodnotí podle protokolu
-`config/protocols/mou_prostate.yaml` v režimu DEMO. Dříve založená vyšetření
-mají verzi protokolu uloženou v historii. Pro zopakování stejného archivu pod
-novým protokolem použijte samostatné testovací úložiště.
+Tento návod popisuje referenční technické zkoušky se starším profilem
+`tests/fixtures/protocols/mou_prostate.yaml` v režimu DEMO. Běžné spuštění
+používá `config/protocols/prostate_pirads_v2_1.yaml`. Dříve založená vyšetření
+mají verzi protokolu uloženou v historii. Pro zopakování stejného archivu
+pod jiným protokolem použijte samostatné testovací úložiště.
 
 1. Přijměte vyšetření obvyklým způsobem. Kritické odchylky technických hodnot
    se mohou zobrazit už během přenosu.

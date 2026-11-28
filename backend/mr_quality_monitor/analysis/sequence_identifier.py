@@ -9,6 +9,26 @@ from .series_aggregator import AcquisitionGroup
 from .validation_rules import matches
 
 
+def match_study_protocol(records, candidates):
+    """Return a protocol only when the header evidence selects a single candidate."""
+    selected = set()
+    for record in records:
+        matching = [
+            snapshot
+            for snapshot, predicates in candidates
+            if any(
+                (value := record.known(predicate.field)) is not None
+                and matches(value, predicate) == "pass"
+                for predicate in predicates
+            )
+        ]
+        if len(matching) == 1:
+            selected.add(matching[0])
+            if len(selected) > 1:
+                return None
+    return next(iter(selected), None)
+
+
 @dataclass(frozen=True)
 class IdentificationEvidence:
     field: str
@@ -39,12 +59,19 @@ def identify(group: AcquisitionGroup, protocol: Protocol) -> Identification:
     candidates = []
     for sequence in protocol.sequences:
         evidence = []
+        decisions = set()
         for record in group.members:
-            for predicate in sequence.identifiers:
+            alternatives = set()
+            predicates = sequence.identifiers + sequence.any_identifiers
+            for index, predicate in enumerate(predicates):
                 actual = record.fields.get(predicate.field)
                 decision = "unknown"
                 if actual is not None and actual.state == "known" and actual.unit == predicate.unit:
                     decision = "mismatch" if matches(actual.value, predicate) == "fail" else "match"
+                if index < len(sequence.identifiers):
+                    decisions.add(decision)
+                else:
+                    alternatives.add(decision)
                 evidence.append(
                     IdentificationEvidence(
                         predicate.field,
@@ -57,7 +84,12 @@ def identify(group: AcquisitionGroup, protocol: Protocol) -> Identification:
                         tuple(source.path for source in actual.sources) if actual else (),
                     )
                 )
-        decisions = {item.decision for item in evidence}
+            if alternatives:
+                decisions.add(
+                    "match" if "match" in alternatives
+                    else "unknown" if "unknown" in alternatives
+                    else "mismatch"
+                )
         decision = (
             "mismatch"
             if "mismatch" in decisions

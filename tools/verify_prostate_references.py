@@ -280,7 +280,7 @@ def main():
     parser.add_argument("archives", nargs="+", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    snapshot = load_protocol(Path("config/protocols/mou_prostate.yaml"))
+    snapshot = load_protocol(Path("tests/fixtures/protocols/mou_prostate.yaml"))
     cases = []
     for path in args.archives:
         with ZipFile(path) as archive:

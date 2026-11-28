@@ -53,6 +53,18 @@ def wait_ready(process: subprocess.Popen | None, ready, service: str) -> None:
     raise RuntimeError(f"{service}: vypršel čas čekání na spuštění.")
 
 
+def stop_managed_services(root: Path, control: Path) -> None:
+    managed = tuple(
+        service for service in ("receiver", "analysis")
+        if (control / f"{service}.managed").is_file()
+    )
+    for service in managed:
+        (control / f"{service}.stop").touch()
+    for service in managed:
+        wait_ready(None, lambda: not running(root, service), service)
+        (control / f"{service}.managed").unlink()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("start", "send", "stop"))
@@ -74,20 +86,21 @@ def main() -> int:
             receiver_stop = control / "receiver.stop"
             analysis_stop = control / "analysis.stop"
             if args.action == "stop":
-                for service, stop_file in (
-                    ("receiver", receiver_stop),
-                    ("analysis", analysis_stop),
-                ):
-                    managed = control / f"{service}.managed"
-                    if managed.is_file():
-                        stop_file.touch()
-                for service in ("receiver", "analysis"):
-                    managed = control / f"{service}.managed"
-                    if managed.is_file():
-                        wait_ready(None, lambda: not running(root, service), service)
-                        managed.unlink()
+                stop_managed_services(root, control)
                 print("Příjem a analýza spuštěné zástupcem jsou zastavené.")
                 return 0
+
+            if args.action == "start" and config.single_active_study and not args.no_window:
+                # Closing the viewer leaves intake running. Start a new session
+                # before opening the next main window so startup retention runs.
+                if any(
+                    running(root, service) and not (control / f"{service}.managed").is_file()
+                    for service in ("receiver", "analysis")
+                ):
+                    raise RuntimeError(
+                        "Před spuštěním nové relace zastavte ručně spuštěný příjem a analýzu."
+                    )
+                stop_managed_services(root, control)
 
             def receiver_ready():
                 status = read_health(root)
@@ -108,6 +121,8 @@ def main() -> int:
                     "mr_quality_monitor.cli",
                     args.config,
                     logs / "launcher-receiver.log",
+                    "--protocol",
+                    str(args.protocol),
                     "--stop-file",
                     str(receiver_stop),
                 )

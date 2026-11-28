@@ -9,13 +9,17 @@ from .view_data import MonitorReader
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="MR Quality Monitor — DEMO desktop viewer")
+    parser = argparse.ArgumentParser(description="MR Quality Monitor desktop viewer")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--protocol", type=Path)
     args = parser.parse_args()
     try:
         config = load_config(args.config)
-        protocol = load_protocol(args.protocol).protocol.model_dump() if args.protocol else None
+        protocol = (
+            load_protocol(args.protocol).protocol.model_dump()
+            if args.protocol and not config.single_active_study and args.protocol.is_file()
+            else None
+        )
     except Exception:
         print("Konfiguraci nelze načíst.")
         return 2
@@ -28,7 +32,12 @@ def main() -> int:
         return 2
     app = QApplication([])
     app.setApplicationName("MR Quality Monitor")
-    window = MainWindow(config, reader=MonitorReader(config.storage_root, intake_protocol=protocol))
+    reader = MonitorReader(
+        config.storage_root,
+        intake_protocol=protocol,
+        single_active_study=config.single_active_study,
+    )
+    window = MainWindow(config, reader=reader)
     window.show()
     return app.exec()
 

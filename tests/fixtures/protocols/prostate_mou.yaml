@@ -1,12 +1,18 @@
 # Clinical prostate MRI protocol based on MOU requirements (pozadavky_na_kontrolu.md).
 schema_version: 2
 protocol_id: PROSTATE_MOU
-version: "1.0"
+version: "1.2"
 mode: CLINICAL
 display_name: "MRI prostaty — MOÚ protokol"
 author: "MOÚ / MR.buddy"
 source: "pozadavky_na_kontrolu.md"
 approved_by: "MOÚ clinical specification"
+
+# Any matching entry may identify the examination. The localizer alone is generic.
+study_identifiers:
+  - { field: StudyDescription, constraint: { kind: exact, value: Panev Prostata Pi Rads } }
+  - { field: ProtocolName, constraint: { kind: exact, value: Panev Prostata Pi Rads } }
+  - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm } }
 
 sequences:
   - sequence_id: LOCALIZER
@@ -88,6 +94,7 @@ sequences:
     group: T2W
     role: t2w_sag
     image_required: true
+    image_checks: &artifact_checks [low_snr, motion_ghosting, slab_discontinuity]
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -138,6 +145,7 @@ sequences:
     group: T2W
     role: t2w_cor
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -153,6 +161,7 @@ sequences:
     group: T2W
     role: t2w_tra
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -167,6 +176,7 @@ sequences:
     group: DWI
     role: dwi_low_b
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -203,6 +213,7 @@ sequences:
     group: DWI
     role: dwi_intermediate_b
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -239,6 +250,7 @@ sequences:
     group: DWI
     role: dwi_adc
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -267,6 +279,7 @@ sequences:
     group: DWI
     role: dwi_high_b
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:
@@ -302,6 +315,7 @@ sequences:
     group: DWI
     role: dwi_resolve
     image_required: true
+    image_checks: *artifact_checks
     completion: { mode: geometric_stack, min_members: 5 }
     geometry_severity: critical
     identifiers:

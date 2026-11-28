@@ -11,7 +11,9 @@ from mr_quality_monitor.protocols.manager import load_protocol
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--protocol", type=Path, default=Path("config/protocols/gui_demo.yaml"))
+    parser.add_argument(
+        "--protocol", type=Path, default=Path("tests/fixtures/protocols/gui_demo.yaml")
+    )
     args = parser.parse_args()
     seed_demo(args.root, load_protocol(args.protocol))
     config = args.root / "viewer_config.yaml"

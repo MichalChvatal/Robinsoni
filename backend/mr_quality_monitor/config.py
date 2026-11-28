@@ -44,6 +44,7 @@ class ReceiverConfig(BaseModel):
     allowed_calling_aet: str = "MR_TEST"
     allowed_peer_ip: IPv4Address | IPv6Address = IPv4Address("127.0.0.1")
     storage_root: Path
+    single_active_study: bool = False
     minimum_free_bytes: int = Field(default=104857600, ge=0)
     maximum_associations: int = Field(default=4, ge=1, le=32)
     network_timeout_seconds: int = Field(default=30, ge=1, le=300)

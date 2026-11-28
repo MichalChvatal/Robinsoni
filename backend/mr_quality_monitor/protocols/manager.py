@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from ..analysis.image_quality import default_registry
 from .models import Protocol
 
 
@@ -48,6 +49,11 @@ class ProtocolSnapshot:
         data = protocol.model_dump(mode="json")
         if protocol.prostate_checks is None:
             del data["prostate_checks"]
+        if not protocol.study_identifiers:
+            del data["study_identifiers"]
+        for sequence in data["sequences"]:
+            if not sequence["any_identifiers"]:
+                del sequence["any_identifiers"]
         content = json.dumps(data, sort_keys=True, separators=(",", ":"))
         return cls(content, hashlib.sha256(content.encode()).hexdigest())
 
@@ -69,7 +75,29 @@ def load_protocol(path: Path) -> ProtocolSnapshot:
         data = yaml.load(text, Loader=UniqueSafeLoader)
     else:
         raise ValueError("Protocol must use YAML or JSON")
-    return ProtocolSnapshot.create(Protocol.model_validate(data))
+    protocol = Protocol.model_validate(data)
+    configured_detectors = {
+        check for sequence in protocol.sequences for check in sequence.image_checks
+    }
+    supported_detectors = {detector.detector_id for detector in default_registry().detectors}
+    unknown = configured_detectors - supported_detectors
+    if unknown:
+        raise ValueError(f"Unknown image check IDs: {', '.join(sorted(unknown))}")
+    return ProtocolSnapshot.create(protocol)
+
+
+def load_protocol_candidates(path: Path) -> tuple[ProtocolSnapshot, ...]:
+    """A file selects a single candidate. A directory provides a clinical catalogue."""
+    if not path.is_dir():
+        return (load_protocol(path),)
+    paths = sorted((*path.glob("*.yaml"), *path.glob("*.yml")))
+    snapshots = tuple(load_protocol(candidate) for candidate in paths)
+    if not snapshots or any(
+        snapshot.protocol.mode != "CLINICAL" or not snapshot.protocol.study_identifiers
+        for snapshot in snapshots
+    ):
+        raise ValueError("Protocol directory requires identifiable clinical protocols")
+    return snapshots
 
 
 class ProtocolManager:

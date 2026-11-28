@@ -31,7 +31,9 @@ from sqlalchemy import func, select
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
-    parser.add_argument("--protocol", type=Path, default=Path("config/protocols/demo_mr.yaml"))
+    parser.add_argument(
+        "--protocol", type=Path, default=Path("tests/fixtures/protocols/demo_mr.yaml")
+    )
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)

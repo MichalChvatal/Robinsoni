@@ -4,7 +4,7 @@ import json
 
 STATUS_SYMBOLS = {"GREEN": "●", "ORANGE": "▲", "RED": "■", "GRAY": "○"}
 STATUS_LABELS = {
-    "GREEN": "OK · DEMO",
+    "GREEN": "OK",
     "ORANGE": "Varování",
     "RED": "Kritická odchylka",
     "GRAY": "Nevyhodnoceno",
@@ -49,6 +49,7 @@ REASONS = {
     "fallback_sequence_used": "Použita záložní sekvence (primární nedostupná)",
     "geometry_alignment_mismatch": "Nesouhlasí geometrické zarovnání sekvencí",
     "prostate_coverage_incomplete": "Pokrytí prostaty je neúplné",
+    "segmentation_mask_bounds_unavailable": "Rozsah prostaty ze segmentační masky není ověřen",
     "clinical_requirements_passed": "Klinické požadavky splněny",
     "image_not_required": "Obrazová kontrola pro tuto sekvenci není definována",
     "study_rule_passed": "Pravidlo celého vyšetření splněno",

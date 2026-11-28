@@ -36,6 +36,7 @@ class Transfer(QThread):
                 called_aet=self.config.ae_title,
                 calling_aet=self.config.allowed_calling_aet,
                 timeout=self.config.network_timeout_seconds,
+                report_discarded=True,
             )
         except ConnectionError:
             self.error = "Přijímač odmítl spojení nebo je nedostupný."
@@ -106,11 +107,17 @@ class SenderWindow(QWidget):
                 f"Potvrzeno přijímačem: {result.sent} · "
                 f"Přeskočeno: {result.skipped} · Chyby: {result.failed}"
             )
+            if result.discarded:
+                message += (
+                    f"\nMimo aktivní vyšetření: {result.discarded} snímků se neuložilo."
+                    "\nPro opětovné načtení předchozího vyšetření zahajte novou relaci "
+                    "přes Spustit aplikaci.cmd."
+                )
             if result.last_status:
                 message += f"\nPoslední chyba: {result.last_status}"
             if result.disconnected:
                 message += "\nSpojení se přerušilo. Zbývající soubory nebyly odeslány."
-            if not result.sent and not result.failed:
+            if not (result.sent or result.failed or result.discarded):
                 message += "\nVe výběru se nenašly podporované DICOM snímky."
         self.status.setText(message)
         transfer.deleteLater()

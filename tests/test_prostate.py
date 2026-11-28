@@ -17,7 +17,7 @@ from pydicom.uid import generate_uid
 
 @pytest.fixture
 def mou():
-    return load_protocol(Path("config/protocols/mou_prostate.yaml"))
+    return load_protocol(Path("tests/fixtures/protocols/mou_prostate.yaml"))
 
 
 def series(image, protocol, sequence, positions=(0, 3, 6)):

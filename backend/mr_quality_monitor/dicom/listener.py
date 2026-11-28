@@ -13,7 +13,13 @@ from ..config import ReceiverConfig
 from ..database.models import DicomInstance
 from ..process_lock import ReceiverLock
 from ..services.receiver_health import HealthPublisher
-from .storage import STORAGE_CLASSES, TRANSFER_SYNTAXES, InvalidDicom, Storage
+from .storage import (
+    DISCARDED_STUDY_STATUS,
+    STORAGE_CLASSES,
+    TRANSFER_SYNTAXES,
+    InvalidDicom,
+    Storage,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -25,8 +31,9 @@ class Listener:
     active request handlers before disposing storage or releasing the OS lock.
     """
 
-    def __init__(self, config: ReceiverConfig):
+    def __init__(self, config: ReceiverConfig, *, protocols=()):
         self.config = config
+        self.protocols = protocols
         self.process_lock = ReceiverLock(config.storage_root)
         self.storage: Storage | None = None
         self.server = None
@@ -45,8 +52,13 @@ class Listener:
             raise RuntimeError("Listener is already running")
         self.process_lock.acquire()
         try:
-            self.storage = Storage(self.config.storage_root, self.config.minimum_free_bytes)
-            recovered = self.storage.recover()
+            self.storage = Storage(
+                self.config.storage_root,
+                self.config.minimum_free_bytes,
+                single_active_study=self.config.single_active_study,
+                protocols=self.protocols,
+            )
+            recovered = self.storage.recover(reset_study=self.config.single_active_study)
             with self.storage.sessions() as session:
                 self.stats = {
                     "unique_instances": session.scalar(
@@ -93,13 +105,20 @@ class Listener:
 
     def _health_snapshot(self) -> dict:
         with self.stats_lock:
-            return {
+            snapshot = {
                 **self.stats,
                 "host": str(self.config.host),
                 "port": self.config.port,
                 "ae_title": self.config.ae_title,
                 "active_associations": len(self.ae.active_associations) if self.ae else 0,
             }
+        if self.config.single_active_study and self.storage is not None:
+            self.storage.retry_discarded_cleanup()
+            with self.storage.sessions() as session:
+                snapshot["unique_instances"] = session.scalar(
+                    select(func.count()).select_from(DicomInstance)
+                )
+        return snapshot
 
     def _record_error(self, code: str) -> None:
         with self.stats_lock:
@@ -130,6 +149,8 @@ class Listener:
                 event.assoc.requestor.address,
             )
             LOG.info("store_completed outcome=%s", outcome)
+            if outcome == "discarded":
+                return DISCARDED_STUDY_STATUS
             with self.stats_lock:
                 if outcome == "stored":
                     self.stats["unique_instances"] += 1

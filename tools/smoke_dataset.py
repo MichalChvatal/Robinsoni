@@ -39,7 +39,7 @@ def main() -> None:
     parser.add_argument("archive", type=Path)
     parser.add_argument("--workdir", type=Path, default=Path("test-results"))
     parser.add_argument("--report", type=Path)
-    parser.add_argument("--protocol", type=Path, help="Also verify integrated DEMO analysis")
+    parser.add_argument("--protocol", type=Path, help="Also verify analysis with this protocol")
     args = parser.parse_args()
     args.workdir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="dicom-smoke-", dir=args.workdir) as temporary:
@@ -115,7 +115,8 @@ def main() -> None:
                 "duplicates_verified": 2,
             }
             if args.protocol:
-                with open_worker(config.storage_root, load_protocol(args.protocol)) as worker:
+                protocol = load_protocol(args.protocol)
+                with open_worker(config.storage_root, protocol, config) as worker:
                     if worker.run_once(Event()):
                         raise RuntimeError("Analysis encountered failed inputs")
                     with worker.sessions() as session:

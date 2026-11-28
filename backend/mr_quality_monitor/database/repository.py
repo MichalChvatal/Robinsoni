@@ -106,7 +106,15 @@ class HistoryRepository:
             )
         session.flush()
 
-    def begin_study(self, study_uid: str, snapshot: ProtocolSnapshot, *, actor: str) -> str:
+    def begin_study(
+        self,
+        study_uid: str,
+        snapshot: ProtocolSnapshot,
+        *,
+        actor: str,
+        require_intake: bool = False,
+        intake_instance_id: str | None = None,
+    ) -> str:
         """Pin the original protocol permanently and return the main branch ID.
 
         Patient identity is deliberately local to this study. No patient ID/name
@@ -123,6 +131,12 @@ class HistoryRepository:
         ):
             raise ValueError("Invalid StudyInstanceUID")
         with self._write() as session:
+            if require_intake or intake_instance_id:
+                intake = select(DicomInstance.id).where(DicomInstance.study_uid == study_uid)
+                if intake_instance_id:
+                    intake = intake.where(DicomInstance.id == intake_instance_id)
+                if not session.scalar(intake.limit(1)):
+                    raise ValueError("Study intake is no longer available")
             old = session.get(Study, study_uid)
             if old is not None:
                 if old.protocol_sha256 != snapshot.sha256:
@@ -591,12 +605,14 @@ class HistoryRepository:
             )
 
     def finalize_current(self, study_uid: str, branch_id: str, *, actor: str) -> str:
-        """Close the latest fully processed MOÚ snapshot with explicit operator evidence."""
+        """Close the latest fully processed clinical snapshot with operator evidence."""
         with self.sessions() as session:
             branch = self._branch(session, study_uid, branch_id)
             protocol = self.get_protocol(study_uid, branch_id).protocol
-            if branch.label != "main" or not (protocol.prostate_checks or protocol.study_rules):
-                raise ValueError("Only the main MOÚ evaluation can be closed here")
+            if branch.label != "main" or not (
+                protocol.study_identifiers or protocol.prostate_checks or protocol.study_rules
+            ):
+                raise ValueError("Only the main clinical evaluation can be closed here")
             run = session.scalar(
                 select(ValidationRun)
                 .where(ValidationRun.branch_id == branch_id)

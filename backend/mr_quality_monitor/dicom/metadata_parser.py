@@ -14,6 +14,7 @@ from ..analysis.metadata_normalizer import (
     MetadataValue,
     normalize,
 )
+from ..analysis.series_aggregator import slice_normal
 from ..vendors.base import VendorAdapter, adapter_for, raw_strings
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ FIELDS: dict[str, FieldSpec] = {
             "ManufacturerModelName",
             "TimezoneOffsetFromUTC",
             "StudyDescription",
+            "BodyPartExamined",
             "OperatorsName",
             "PatientAge",
         )
@@ -79,6 +81,7 @@ FIELDS: dict[str, FieldSpec] = {
     "FieldOfView": F("float", "mm", 2),
     "ImagePositionPatient": F("float", "mm", 3),
     "ImageOrientationPatient": F("float", count=6),
+    "OrientationLabel": F("text"),
     "DiffusionGradientOrientation": F("float", count=3),
     "DiffusionBValue": F("float", "s/mm2"),
     "PrivateDiffusionBValue": F("float", "s/mm2"),
@@ -253,6 +256,21 @@ def _derived_evidence(path: str, values: tuple[float, ...], unit: str | None) ->
 
 
 def _populate_derived_fields(fields: dict[str, MetadataValue]) -> None:
+    orientation = fields["ImageOrientationPatient"]
+    if orientation.state == "known":
+        try:
+            normal = tuple(map(abs, slice_normal(orientation.value)))
+        except ValueError:
+            pass
+        else:
+            axis = max(range(3), key=normal.__getitem__)
+            if normal.count(normal[axis]) == 1:
+                label = ("SAG", "COR", "TRA")[axis]
+                fields["OrientationLabel"] = normalize(
+                    FIELDS["OrientationLabel"],
+                    (Evidence("ImageOrientationPatient", "", (label,), parser="derived/1"),),
+                )
+
     def _known(name: str):
         item = fields.get(name)
         return item.value if item and item.state == "known" else None
@@ -367,6 +385,8 @@ def parse_dataset(
     for frame in range(frames):
         fields = {}
         for keyword, spec in FIELDS.items():
+            if keyword == "OrientationLabel":
+                continue
             if keyword in DERIVED_FIELDS:
                 if prostate_checks is not None:
                     fields[keyword] = MetadataValue(

@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Literal
 
-from ..protocols.models import Contains, Exact, Limit, OneOf, Predicate, Range, Target
+from ..protocols.models import Contains, Exact, Excludes, Limit, OneOf, Predicate, Range, Target
 
 Match = Literal["pass", "warning", "fail"]
 
@@ -19,7 +19,8 @@ def scalar_match(value, constraint) -> Match:
         expected = constraint.value
         if not constraint.case_sensitive:
             value, expected = value.casefold(), expected.casefold()
-        return "pass" if expected in value else "fail"
+        found = expected in value
+        return "pass" if found != isinstance(constraint, Excludes) else "fail"
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return "fail"
     if isinstance(constraint, Limit):

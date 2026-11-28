@@ -3,7 +3,7 @@ param(
     [ValidateSet('start', 'send', 'stop')]
     [string]$Action,
     [string]$Config = 'config/app_config.yaml',
-    [string]$Protocol = 'config/protocols/prostate_mou.yaml',
+    [string]$Protocol = 'config/protocols',
     [switch]$NoWindow
 )
 

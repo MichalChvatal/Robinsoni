@@ -10,7 +10,7 @@ from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 from pynetdicom import AE
 
-from .storage import STORAGE_CLASSES, TRANSFER_SYNTAXES
+from .storage import DISCARDED_STUDY_STATUS, STORAGE_CLASSES, TRANSFER_SYNTAXES
 
 if TYPE_CHECKING:
     from ..config import PacsConfig
@@ -23,6 +23,7 @@ class SendResult:
     failed: int = 0
     last_status: str = ""
     disconnected: bool = False
+    discarded: int = 0
 
 
 def inputs(paths: tuple[Path, ...]) -> Iterator:
@@ -47,6 +48,7 @@ def send(
     called_aet: str,
     calling_aet: str,
     timeout: int = 30,
+    report_discarded: bool = False,
 ) -> SendResult:
     """Send supported objects without transcoding and count listener acknowledgements."""
     ae = AE(ae_title=calling_aet)
@@ -84,6 +86,8 @@ def send(
             status = getattr(response, "Status", None)
             if status == 0:
                 result.sent += 1
+            elif report_discarded and status == DISCARDED_STUDY_STATUS:
+                result.discarded += 1
             else:
                 result.failed += 1
                 result.last_status = f"0x{status:04X}" if status is not None else "bez odpovědi"

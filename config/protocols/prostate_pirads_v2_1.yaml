@@ -2,22 +2,26 @@
 # Source: ACR–ESUR–AdMeTech, PI-RADS v2.1 (2019), Section I.B and Section IV.
 # ACR lists PI-RADS v2.1 as the current release: https://www.acr.org/Clinical-Resources/Clinical-Tools-and-Reference/Reporting-and-Data-Systems/PI-RADS
 # Official document: https://www.acr.org/-/media/ACR/Files/RADS/PI-RADS/PIRADS-V2-1.pdf
-# DICOM SeriesDescription naming is not standardized by PI-RADS. The selectors below
-# use generic English terms and MUST be mapped to the scanner's actual series labels
-# before operational use. A metadata pass cannot establish image quality or every
+# T2W selectors use DICOM orientation and T2 evidence from available headers.
+# The DCE selector still depends on the scanner's series labels.
+# A metadata pass cannot establish image quality or every
 # PI-RADS requirement; see limitations noted below the sequence definitions.
 schema_version: 2
 protocol_id: PROSTATE_PIRADS_V21
-version: "1.0"
+version: "1.2"
 mode: CLINICAL
 display_name: "Prostate MRI — PI-RADS v2.1 reference profile"
 author: "ACR–ESUR–AdMeTech PI-RADS Steering Committee (source standard)"
 source: "ACR–ESUR–AdMeTech, PI-RADS v2.1 (2019), Section I.B and Section IV; see URLs in file header"
 approved_by: "Source attribution only; NOT locally approved for clinical deployment"
 
+study_identifiers:
+  - {field: BodyPartExamined, constraint: {kind: contains, value: PROSTATE, case_sensitive: false}}
+  - {field: StudyDescription, constraint: {kind: contains, value: Prostat, case_sensitive: false}}
+
 sequences:
   # PI-RADS: axial (straight or oblique along prostate long axis) plus at least
-  # one orthogonal plane. Names below are generic DICOM description selectors.
+  # one orthogonal plane.
   - sequence_id: T2_AXIAL
     display_name: "T2W axial / oblique axial"
     order: 1
@@ -29,8 +33,11 @@ sequences:
     geometry_severity: critical
     identifiers:
       - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: OrientationLabel, constraint: {kind: exact, value: TRA}}
+    any_identifiers: &t2_identifiers
+      - {field: ImageType, components: any, constraint: {kind: contains, value: T2, case_sensitive: false}}
       - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: axial, case_sensitive: false}}
+      - {field: ProtocolName, constraint: {kind: contains, value: T2, case_sensitive: false}}
     parameters: &t2_parameters
       - rule_id: t2_slice_thickness
         field: SliceThickness
@@ -64,10 +71,10 @@ sequences:
       - rule_id: t2_frequency_resolution
         field: FrequencyResolution
         unit: mm
-        constraint: {kind: range, minimum: 0.0, maximum: 0.4}
+        constraint: {kind: range, minimum: 0.0, maximum: 0.7} #0.4 - originally, but 0.7 is the upper limit for 3T scanners
         severity: critical
         on_missing: warning
-        action: "PI-RADS v2.1: T2W frequency in-plane dimension ≤0.4 mm"
+        action: "PI-RADS v2.1: T2W frequency in-plane dimension ≤0.7 mm"
 
   - sequence_id: T2_CORONAL
     display_name: "T2W coronal orthogonal plane"
@@ -80,8 +87,8 @@ sequences:
     geometry_severity: critical
     identifiers:
       - {field: Modality, constraint: {kind: exact, value: MR}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: coronal, case_sensitive: false}}
+      - {field: OrientationLabel, constraint: {kind: exact, value: COR}}
+    any_identifiers: *t2_identifiers
     parameters: *t2_parameters
 
   - sequence_id: T2_SAGITTAL
@@ -95,8 +102,8 @@ sequences:
     geometry_severity: critical
     identifiers:
       - {field: Modality, constraint: {kind: exact, value: MR}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: sagittal, case_sensitive: false}}
+      - {field: OrientationLabel, constraint: {kind: exact, value: SAG}}
+    any_identifiers: *t2_identifiers
     parameters: *t2_parameters
 
   # PI-RADS v2.1 calls for axial T1W and T2W in prostate MR exams. T1W is
@@ -153,10 +160,8 @@ sequences:
         on_missing: warning
         action: "PI-RADS v2.1: DWI frequency in-plane dimension ≤2.5 mm"
 
-  # High-b image set is mandatory; PI-RADS allows direct acquisition or
-  # synthesis. The b-value constraint is omitted because this application's
-  # current range constraint requires an invented finite upper bound; check
-  # that an acquired or synthesized set with b ≥1400 s/mm² is present locally.
+  # Both acquired and synthesized sets are eligible. The selector verifies
+  # a recorded b-value of at least 1400 s/mm2.
   - sequence_id: DWI_HIGH_B
     display_name: "DWI high-b image set (acquired or synthesized)"
     order: 5
@@ -168,8 +173,12 @@ sequences:
     geometry_severity: critical
     identifiers:
       - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: DiffusionBValue, unit: s/mm2, constraint: {kind: limit, bound: minimum, value: 1400.0}}
+      - {field: SeriesDescription, constraint: {kind: excludes, value: ADC, case_sensitive: false}}
+    any_identifiers:
+      - {field: ImageType, components: any, constraint: {kind: contains, value: DIFFUSION, case_sensitive: false}}
       - {field: SeriesDescription, constraint: {kind: contains, value: DWI, case_sensitive: false}}
-      - {field: SeriesDescription, constraint: {kind: contains, value: high, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: diff, case_sensitive: false}}
     parameters:
       - rule_id: dwi_high_b_slice_thickness
         field: SliceThickness

@@ -135,12 +135,15 @@ class MainWindow(QMainWindow):
         self.snapshot = None
         self.row_key = None
         self.display_stale = True
-        self.setWindowTitle("MR Quality Monitor — DEMO")
+        self.read_failed = False
+        self.setWindowTitle("MR Quality Monitor")
         self.resize(660, 540)
         self.setMinimumSize(400, 330)
         self._build()
         self.reader_thread = QThread(self)
-        self.worker = ReadWorker(reader or MonitorReader(config.storage_root))
+        self.worker = ReadWorker(reader or MonitorReader(
+            config.storage_root, single_active_study=config.single_active_study
+        ))
         self.worker.moveToThread(self.reader_thread)
         self.request_read.connect(self.worker.read)
         self.worker.loaded.connect(self._loaded)
@@ -164,10 +167,12 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         heading.addWidget(label("MR Quality Monitor", "title"))
         heading.addStretch()
-        heading.addWidget(label("DEMO · metadata", "demoBadge"))
+        if not self.config.single_active_study:
+            heading.addWidget(label("DEMO · metadata", "demoBadge"))
         outer.addLayout(heading)
         selectors = QHBoxLayout()
-        selectors.addWidget(label("Vyšetření"))
+        study_label = label("Vyšetření")
+        selectors.addWidget(study_label)
         self.study_combo = QComboBox()
         self.study_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
@@ -175,11 +180,21 @@ class MainWindow(QMainWindow):
         self.study_combo.setMinimumContentsLength(12)
         self.study_combo.currentIndexChanged.connect(self._study_changed)
         selectors.addWidget(self.study_combo, 2)
+        if self.config.single_active_study:
+            study_label.hide()
+            self.study_combo.hide()
         outer.addLayout(selectors)
         self.state_label = label("○ Čeká na data", "stateBadge")
         outer.addWidget(self.state_label)
-        self.message_label = label("Načítám místní přehled…", "message")
+        startup_text = (
+            "Čeká na první data z MR."
+            if self.config.single_active_study else "Načítám místní přehled…"
+        )
+        self.message_label = label(startup_text, "message")
         outer.addWidget(self.message_label)
+        self.completion_label = label("", "detailHeading")
+        self.completion_label.hide()
+        outer.addWidget(self.completion_label)
         self.legend = StatusLegend()
         outer.addWidget(self.legend)
         self.sequence_table = table(["Sekvence"])
@@ -295,6 +310,7 @@ class MainWindow(QMainWindow):
         self.sequence_table.setRowCount(0)
         self.finalize_button.hide()
         self.study_findings.hide()
+        self.completion_label.hide()
         self.detail_dialog.close()
         self.detail.show_row(None)
         self.patient_label.setText("Pacient: načítám…")
@@ -326,15 +342,27 @@ class MainWindow(QMainWindow):
     def _loaded(self, generation, snapshot):
         self.busy = False
         if not self.closing and generation == self.generation:
+            changed_study = self.study_uid != snapshot.study_uid or (
+                self.config.single_active_study
+                and self.branch_id is not None
+                and self.branch_id != snapshot.branch_id
+            )
             redraw = (
                 self.snapshot is None
+                or changed_study
                 or self.snapshot.rows != snapshot.rows
                 or self.snapshot.history != snapshot.history
                 or self.display_stale != snapshot.stale
+                or self.read_failed
             )
+            if changed_study:
+                self.row_key = None
+                self.detail_dialog.close()
+                self.detail.show_row(None)
             self.snapshot = snapshot
             self.study_uid, self.branch_id = snapshot.study_uid, snapshot.branch_id
             self.display_stale = snapshot.stale
+            self.read_failed = False
             self._study_findings(snapshot)
             with QSignalBlocker(self.study_combo):
                 self.study_combo.clear()
@@ -366,6 +394,16 @@ class MainWindow(QMainWindow):
             self._state(snapshot.status)
             self.message_label.setText(snapshot.message)
             self.message_label.setVisible(bool(snapshot.message))
+            completion_labels = {
+                "in_progress": "Vyšetření probíhá",
+                "done": "DONE — požadavky protokolu splněny",
+                "incomplete": "INCOMPLETE — nesplněné požadavky",
+                "verification_pending": "Úplnost čeká na ověření",
+            }
+            self.completion_label.setText(
+                completion_labels[snapshot.completion.state] if snapshot.completion else ""
+            )
+            self.completion_label.setVisible(snapshot.completion is not None)
             self.finalize_button.setVisible(snapshot.can_finalize)
             self.finalize_button.setEnabled(snapshot.can_finalize)
             if redraw:
@@ -381,11 +419,13 @@ class MainWindow(QMainWindow):
         self.busy = False
         if not self.closing and generation == self.generation:
             self.display_stale = True
+            self.read_failed = True
             self.message_label.setText(
                 "Data nelze načíst. Ověřte dostupnost místního úložiště; "
                 "zobrazené údaje mohou být zastaralé."
             )
             self.message_label.show()
+            self.completion_label.hide()
             self._state(
                 "RED" if self.snapshot and self.snapshot.status == "RED" else "GRAY",
                 "Přehled není aktuální",
@@ -404,7 +444,10 @@ class MainWindow(QMainWindow):
         self.state_label.setStyleSheet(f"background: {background}; color: {foreground};")
 
     def _study_findings(self, snapshot):
-        lines = []
+        lines = (
+            ["\n".join(snapshot.completion.details)]
+            if snapshot.completion and snapshot.completion.details and not self.read_failed else []
+        )
         for row in snapshot.study_rows:
             status = effective_status(row, self.display_stale)
             findings = [critical_description(check) for check in row.checks]
@@ -461,16 +504,22 @@ class MainWindow(QMainWindow):
             )
         self.refresh()
 
+    def _row_stale(self, row):
+        if self.snapshot.completion is not None and not self.read_failed:
+            return row.awaiting_analysis
+        return self.display_stale
+
     def _draw_rows(self):
         snapshot = self.snapshot
         self.sequence_table.setUpdatesEnabled(False)
         with QSignalBlocker(self.sequence_table):
             self.sequence_table.setRowCount(len(snapshot.rows))
             for index, row in enumerate(snapshot.rows):
-                status = effective_status(row, self.display_stale)
-                item = QTableWidgetItem(f"{STATUS_SYMBOLS[status]}  {row.name}")
+                status = effective_status(row, self._row_stale(row))
+                name = f"{row.name}  ·  {row.plan_role}" if row.plan_role else row.name
+                item = QTableWidgetItem(f"{STATUS_SYMBOLS[status]}  {name}")
                 item.setData(Qt.ItemDataRole.UserRole, row.key)
-                description = f"{row.name} · {STATUS_TEXT[status]}"
+                description = f"{name} · {STATUS_TEXT[status]}"
                 item.setData(Qt.ItemDataRole.AccessibleTextRole, description)
                 item.setToolTip(description)
                 color_item(item, status)
@@ -491,7 +540,7 @@ class MainWindow(QMainWindow):
         self.sequence_details_button.setEnabled(row is not None)
         if self.detail_dialog.isVisible():
             if row:
-                self.detail.show_row(row, self.snapshot.history, self.display_stale)
+                self.detail.show_row(row, self.snapshot.history, self._row_stale(row))
             else:
                 self.detail_dialog.close()
 
@@ -501,9 +550,8 @@ class MainWindow(QMainWindow):
             return
         index = self.sequence_table.currentRow()
         if 0 <= index < len(self.snapshot.rows):
-            self.detail.show_row(
-                self.snapshot.rows[index], self.snapshot.history, self.display_stale, opening=True
-            )
+            row = self.snapshot.rows[index]
+            self.detail.show_row(row, self.snapshot.history, self._row_stale(row), opening=True)
             self.detail_dialog.show()
             self.detail_dialog.raise_()
             self.detail_dialog.activateWindow()

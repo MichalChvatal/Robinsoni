@@ -1,5 +1,7 @@
 """Lazy metadata tree, actual/expected checks and per-sequence history."""
 
+import json
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -64,6 +66,44 @@ def color_item(item, status):
     item.setForeground(QColor(foreground))
 
 
+def _image_reference(record, uid, frame):
+    series = known(record, "SeriesNumber")
+    number = known(record, "InstanceNumber")
+    parts = [f"Série {series}"] if series is not None else []
+    parts.append(f"Snímek {number}" if number is not None else "Snímek")
+    parts.append(f"…{uid[-12:]}" if len(uid) > 12 else uid)
+    if frame is not None:
+        parts.append(f"rámec {frame + 1}")
+    return " · ".join(parts)
+
+
+def _check_reference(check, acquisition, records):
+    if uid := check.get("sop_uid"):
+        frame = check.get("frame_index")
+        record = records.get((uid, frame), {})
+        image = _image_reference(record, uid, frame)
+        reference = f"Akv. {acquisition} · {image}" if acquisition else image
+        return reference, f"SOP Instance UID: {uid}"
+    if acquisition:
+        return f"Akv. {acquisition} · Souhrn akvizice", ""
+    return ("Celé vyšetření" if acquisition is None else "Plán sekvence"), ""
+
+
+def _group_checks(checks):
+    groups = {}
+    for acquisition, check in checks:
+        signature = {
+            key: value for key, value in check.items()
+            if key not in {"sop_uid", "frame_index", "paths"}
+        }
+        key = (bool(check.get("sop_uid")), json.dumps(signature, sort_keys=True))
+        group = groups.setdefault(key, [])
+        entry = (acquisition, check)
+        if entry not in group:
+            group.append(entry)
+    return groups.values()
+
+
 class SequenceDetail(QWidget):
     def __init__(self):
         super().__init__()
@@ -101,7 +141,10 @@ class SequenceDetail(QWidget):
         self.summary.setWordWrap(True)
         technical_layout.addWidget(self.summary)
         self.checks = table(
-            ["Parametr / kontrola", "Skutečnost", "Požadavek", "Stav", "Zdroj a důvod"]
+            [
+                "Parametr / kontrola", "Vyhodnocená data", "Skutečnost",
+                "Požadavek", "Stav", "Zdroj a důvod",
+            ]
         )
         self.metadata = QTreeWidget()
         self.metadata.setHeaderLabels(
@@ -157,11 +200,15 @@ class SequenceDetail(QWidget):
         self.metadata.clear()
         self.timeline.setRowCount(0)
         self.records = row.records if row else ()
-        repeats = [item for item in (row.evaluations if row else ()) if item.get("sequence_id")]
+        repeats = [
+            (number, item)
+            for number, item in enumerate(row.evaluations if row else (), start=1)
+            if item.get("sequence_id")
+        ]
         self.tabs.setTabVisible(self.tabs.indexOf(self.acquisitions), len(repeats) > 1)
         self.acquisitions.setRowCount(len(repeats) if len(repeats) > 1 else 0)
         if len(repeats) > 1:
-            for index, item in enumerate(repeats):
+            for index, (number, item) in enumerate(repeats):
                 status = "GRAY" if stale and item["status"] != "RED" else item["status"]
                 findings = dict.fromkeys(
                     critical_description(check)
@@ -169,7 +216,7 @@ class SequenceDetail(QWidget):
                     if check["status"] != "GREEN"
                 )
                 for column, text in enumerate(
-                    (str(index + 1), STATUS_TEXT[status], "\n".join(findings) or "—")
+                    (str(number), STATUS_TEXT[status], "\n".join(findings) or "-")
                 ):
                     cell = QTableWidgetItem(text)
                     cell.setToolTip(text)
@@ -222,17 +269,17 @@ class SequenceDetail(QWidget):
             if row
             else "Vyberte sekvenci pro zobrazení detailu"
         )
-        checks = list(row.checks) if row else []
+        checks = [(None, check) for check in row.checks] if row else []
         if row:
-            for evaluation in row.evaluations:
-                checks.extend(evaluation.get("checks", ()))
+            for acquisition, evaluation in enumerate(row.evaluations, start=1):
+                checks.extend((acquisition, check) for check in evaluation.get("checks", ()))
                 if evaluation["sequence_id"] is None:
                     for candidate in evaluation["identification"]["candidates"]:
                         if candidate["decision"] == "mismatch":
                             continue
                         for evidence in candidate["evidence"]:
                             checks.append(
-                                {
+                                (acquisition, {
                                     "field": evidence["field"],
                                     "actual": evidence["actual"],
                                     "expected": evidence["expected"],
@@ -243,34 +290,57 @@ class SequenceDetail(QWidget):
                                     ),
                                     "paths": evidence["paths"],
                                     "sop_uid": evidence["sop_uid"],
-                                }
+                                    "frame_index": evidence.get("frame_index"),
+                                })
                             )
             if not checks:
                 checks = [
-                    {
+                    (0, {
                         "field": rule["field"],
                         "actual": None,
                         "expected": rule,
                         "status": "GRAY",
                         "reason": row.reason,
                         "paths": (),
-                    }
+                    })
                     for rule in row.requirements
                 ]
-        self.checks.setRowCount(len(checks))
-        for index, check in enumerate(checks):
+        records = {
+            (known(record, "SOPInstanceUID"), record.get("frame_index")): record
+            for record in self.records
+        }
+        grouped_checks = list(_group_checks(checks))
+        self.checks.setRowCount(len(grouped_checks))
+        for index, group in enumerate(grouped_checks):
+            acquisition, check = group[0]
+            references = [
+                _check_reference(member, number, records) for number, member in group
+            ]
+            reference, uid_tooltip = references[0]
+            if len(group) > 1:
+                reference = f"Společné pro {len(group)} snímků / rámců"
+                if not check.get("sop_uid"):
+                    reference = f"Společné pro {len(group)} akvizic"
+                uid_tooltip = "\n".join(
+                    text + ("\n" + tooltip if tooltip else "") for text, tooltip in references
+                )
+            paths = dict.fromkeys(
+                path for _, member in group for path in member.get("paths", ())
+            )
             values = (
                 check.get("field") or check.get("rule_id", "Kontrola"),
+                reference,
                 display_value(check.get("actual")),
                 requirement_text(check.get("expected", {})),
                 STATUS_TEXT[check["status"]],
-                reason_text(check["reason"]) + " · " + ", ".join(check.get("paths", ())),
+                reason_text(check["reason"]) + " · " + ", ".join(paths),
             )
             for column, text in enumerate(values):
                 item = QTableWidgetItem(text)
-                item.setToolTip(str(check.get("sop_uid") or ""))
+                if column == 1 and uid_tooltip:
+                    item.setToolTip(uid_tooltip)
                 self.checks.setItem(index, column, item)
-            color_item(self.checks.item(index, 3), check["status"])
+            color_item(self.checks.item(index, 4), check["status"])
         fields = sorted({field for record in self.records for field in record.get("fields", {})})
         for field in fields:
             entries = [record["fields"].get(field, {}) for record in self.records]
@@ -314,7 +384,7 @@ class SequenceDetail(QWidget):
             value = record["fields"].get(field, {})
             uid = str(known(record, "SOPInstanceUID") or "neznámý")
             frame = record.get("frame_index")
-            name = "…" + uid[-12:] + (f" / rámec {frame + 1}" if frame is not None else "")
+            name = _image_reference(record, uid, frame)
             paths = ", ".join(source["path"] for source in value.get("sources", ()))
             child = QTreeWidgetItem(
                 [

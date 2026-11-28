@@ -44,7 +44,7 @@ Z kořene repozitáře spusťte každý příkaz v samostatném terminálu.
 
 ```powershell
 .\.venv\Scripts\python.exe -m mr_quality_monitor.cli --config config/app_config.yaml
-.\.venv\Scripts\python.exe -m mr_quality_monitor.worker_cli --config config/app_config.yaml --protocol config/protocols/prostate_mou.yaml
+.\.venv\Scripts\python.exe -m mr_quality_monitor.worker_cli --config config/app_config.yaml --protocol config/protocols
 .\.venv\Scripts\python.exe -m mr_quality_monitor.gui --config config/app_config.yaml
 ```
 
@@ -54,21 +54,42 @@ jeho schválené síťové údaje podle [návodu k přijímači](receiver.md).
 
 ## Chování analýzy
 
+Výchozí `config/app_config.yaml` zapíná `single_active_study`. Při novém
+spuštění přijímače se vymaže předchozí vyšetření a monitor čeká na první
+data z MR. Každé spuštění přes `Spustit aplikaci.cmd` zahájí novou relaci
+i po zavření okna, kdy procesy příjmu a analýzy zůstaly spuštěné.
+`Odeslat DICOM.cmd` se připojí k běžící relaci.
+Jakmile se úspěšně uloží první platný MR snímek s novým `StudyInstanceUID`, příjem
+odebere předchozí vyšetření, jeho frontu, výsledky a DICOM soubory z provozního
+úložiště. Monitor při dalším obnovení automaticky zobrazí nové vyšetření.
+Snímek, který jednoznačně odpovídá jinému protokolu v katalogu, zahájí nové
+měření i při shodném nebo dříve použitém `StudyInstanceUID`. Příjem odstraní
+předchozí data a monitor načte plán nového protokolu. Snímky z dříve
+nahrazeného UID bez potvrzené změny protokolu se přeskočí.
+Dříve vytvořené samostatné zálohy SQLite jsou mimo tento úklid.
+
 - Po potvrzeném příjmu MR objektu zůstane jeho úloha ve frontě SQLite. Analýza
   zjišťuje práci přibližně každé dvě sekundy a pro každé dotčené vyšetření sestaví
   akvizice z dostupných MR objektů. Ověřuje soubory kontrolním součtem a čte hlavičky.
-- První analýza uloží verzi protokolu k vyšetření. Jiná volba protokolu při restartu
-  se použije pro nově zakládaná vyšetření.
+- Analýza vybere protokol podle pravidel `study_identifiers` v YAML a uloží jeho
+  verzi k vyšetření. Volba `--protocol` přijímá soubor nebo adresář s klinickými
+  protokoly. Pokud hlavičky zatím nedávají jednoznačnou shodu, monitor čeká na
+  další snímky. Po výběru zobrazí plánované sekvence v pořadí podle YAML.
+  Výchozí spouštěč předá stejný katalog `config/protocols` příjmu i analýze.
 - Historie a potvrzení úloh se ukládají atomicky. Po přerušení proces pokračuje
   z fronty. Duplicitní přenos netvoří novou úlohu. Pozdější snímky spustí nové
   vyhodnocení a GUI mezi příjmem a dokončením označí předchozí výsledek jako zastaralý.
-- Secondary Capture se ukládá a počítá mezi přijaté objekty. Do MR akvizic
-  se nezařazuje a neblokuje kontrolu metadat.
+- Secondary Capture aktuálního vyšetření se ukládá mezi přijaté objekty.
+  Nemění aktivní vyšetření a nezařazuje se do MR akvizic.
 - Protokol s explicitním potvrzením úplnosti nechá akvizici čekat na důkaz.
   Ukončení přenosu ani prodleva mezi snímky takový důkaz neposkytují. Analýza pixelů
   a klinické hodnocení PI-QUAL zůstávají mimo režim DEMO.
 - Jednotlivá akvizice může splnit DEMO pravidla ještě během příjmu. Celkový stav
   vyšetření zůstává bez explicitního uzavření čekající, pokud už není kritický.
+- Po ručním uzavření klinického vyšetření monitor zobrazí **DONE** při splnění
+  požadavků protokolu, **INCOMPLETE** při potvrzeném nesplnění nebo čekání na
+  ověření, pokud dostupné výsledky nestačí. Uvede konkrétní chybějící sekvence
+  a případné využití náhrady. Nové snímky stejného vyšetření verdikt zneplatní.
 
 ## Provoz a ověření
 
@@ -92,5 +113,5 @@ Menší dodaný archiv lze zpracovat vlastním lokálním testem. Výstup uvád�
 objektů a úloh. Test po skončení odstraní své dočasné úložiště.
 
 ```powershell
-.\.venv\Scripts\python.exe tools/smoke_dataset.py data/DICOMDIR_MR50000_ukazka_jednoho_mereni.zip --protocol config/protocols/demo_mr.yaml
+.\.venv\Scripts\python.exe tools/smoke_dataset.py data/DICOMDIR_MR50000_ukazka_jednoho_mereni.zip --protocol config/protocols/prostate_pirads_v2_1.yaml
 ```

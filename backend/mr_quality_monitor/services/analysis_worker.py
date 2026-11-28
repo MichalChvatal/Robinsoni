@@ -8,12 +8,12 @@ from uuid import uuid4
 
 from pydicom.errors import InvalidDicomError
 from pydicom.uid import MRImageStorage
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, select, update
 
 from ..analysis.image_quality import default_registry, load_slice_pixels
 from ..analysis.image_quality.base import ArtifactFinding
 from ..analysis.metadata_normalizer import MetadataRecord
-from ..analysis.sequence_identifier import identify
+from ..analysis.sequence_identifier import identify, match_study_protocol
 from ..analysis.series_aggregator import group_acquisitions
 from ..config import ReceiverConfig
 from ..database.models import AnalysisJob, DicomInstance, Study, SystemEvent
@@ -32,14 +32,23 @@ class InvalidAnalysisInput(ValueError):
 
 
 @contextmanager
-def open_worker(root: Path, protocol: ProtocolSnapshot, config: ReceiverConfig | None = None):
+def open_worker(
+    root: Path,
+    protocol: ProtocolSnapshot | tuple[ProtocolSnapshot, ...],
+    config: ReceiverConfig | None = None,
+):
     lock = ProcessLock(root, "analysis")
     lock.acquire()
     try:
         storage = Storage(root)
         try:
             b_value_tags = config.b_value_tag_order if config else ()
-            yield AnalysisWorker(storage, protocol, b_value_tags=b_value_tags)
+            yield AnalysisWorker(
+                storage,
+                protocol,
+                b_value_tags=b_value_tags,
+                single_active_study=config.single_active_study if config else False,
+            )
         finally:
             storage.close()
     finally:
@@ -50,15 +59,23 @@ class AnalysisWorker:
     def __init__(
         self,
         storage: Storage,
-        protocol: ProtocolSnapshot,
+        protocol: ProtocolSnapshot | tuple[ProtocolSnapshot, ...],
         *,
         b_value_tags: tuple[str, ...] = (),
+        single_active_study: bool = False,
     ):
         self.storage = storage
         self.sessions = storage.sessions
         self.history = HistoryRepository(self.sessions)
-        self.protocol = protocol
+        candidates = (protocol,) if isinstance(protocol, ProtocolSnapshot) else protocol
+        self.candidates = tuple(
+            (snapshot, snapshot.protocol.study_identifiers) for snapshot in candidates
+        )
+        self.manual_protocol = candidates[0] if (
+            len(candidates) == 1 and not self.candidates[0][1]
+        ) else None
         self.b_value_tags = b_value_tags
+        self.single_active_study = single_active_study
 
     def retry_failed(self) -> None:
         """Requeue rejected objects after their local storage has been repaired."""
@@ -67,7 +84,7 @@ class AnalysisWorker:
                 update(AnalysisJob).where(AnalysisJob.state == "failed").values(state="pending")
             )
 
-    def run_once(self, stopped: Event) -> int:
+    def run_once(self, stopped: Event, *, defer_new_study: bool = False) -> int:
         """Process one snapshot per pending study, in order of oldest outstanding job."""
         with self.sessions() as session:
             studies = list(
@@ -84,13 +101,19 @@ class AnalysisWorker:
             if stopped.is_set():
                 break
             try:
-                failures += self._process_study(study_uid, stopped)
+                failures += self._process_study(study_uid, stopped, defer_new_study=defer_new_study)
             except Exception as error:
+                if self.single_active_study:
+                    with self.sessions() as session:
+                        if not session.scalar(
+                            select(exists().where(DicomInstance.study_uid == study_uid))
+                        ):
+                            continue
                 failures += 1
                 LOGGER.error("study_analysis_retry type=%s", type(error).__name__)
         return failures
 
-    def _process_study(self, study_uid: str, stopped: Event) -> int:
+    def _process_study(self, study_uid: str, stopped: Event, *, defer_new_study: bool) -> int:
         with self.sessions() as session:
             inputs = list(
                 session.execute(
@@ -104,31 +127,52 @@ class AnalysisWorker:
                 )
             )
             study_exists = session.get(Study, study_uid) is not None
-        snapshot = self.history.get_protocol(study_uid) if study_exists else self.protocol
-        profile = snapshot.protocol.prostate_checks
+        snapshot = self.history.get_protocol(study_uid) if study_exists else self.manual_protocol
+        profile = snapshot.protocol.prostate_checks if snapshot else None
 
         records = []
         completed = []
         failures = 0
+        readable = []
         for instance, job in inputs:
             if stopped.is_set():
                 return failures
             if instance.sop_class_uid != MRImageStorage:
-                self._set_job_state(job.id, "ignored")
+                self._set_job_state(job.id, instance.id, "ignored")
                 continue
             try:
                 records.extend(self._read(instance, profile))
             except (InvalidDicomError, ValueError, TypeError, EOFError, FileNotFoundError):
-                self._set_job_state(job.id, "failed", instance.id)
-                failures += 1
+                failures += self._set_job_state(job.id, instance.id, "failed")
                 continue
+            readable.append(instance)
             if job.state == "pending":
                 completed.append(job.id)
         if not completed or stopped.is_set():
             return failures
 
+        if snapshot is None:
+            snapshot = match_study_protocol(records, self.candidates)
+            if snapshot is None:
+                return failures
+            if (profile := snapshot.protocol.prostate_checks) is not None:
+                records = [
+                    record for instance in readable for record in self._read(instance, profile)
+                ]
+        branch_id = None
+        if not study_exists or self.single_active_study:
+            branch_id = self.history.begin_study(
+                study_uid, snapshot, actor=ACTOR,
+                intake_instance_id=readable[0].id if self.single_active_study else None,
+            )
         if not study_exists:
-            self.history.begin_study(study_uid, snapshot, actor=ACTOR)
+            protocol = snapshot.protocol
+            LOGGER.info(
+                "study_protocol_selected protocol=%s version=%s mode=%s",
+                protocol.protocol_id, protocol.version, protocol.mode,
+            )
+            if defer_new_study and protocol.study_identifiers:
+                return failures
         groups = group_acquisitions(tuple(records))
 
         sop_to_id = {instance.sop_uid: instance.id for instance, _ in inputs}
@@ -140,6 +184,10 @@ class AnalysisWorker:
         for group in groups:
             if stopped.is_set():
                 return failures
+            if self.single_active_study:
+                with self.sessions() as session:
+                    if session.get(DicomInstance, inputs[0][0].id) is None:
+                        return 0
             sequence = definitions.get(identify(group, snapshot.protocol).sequence_id)
             if sequence is None or not sequence.image_required:
                 continue
@@ -172,6 +220,7 @@ class AnalysisWorker:
             study_uid,
             groups,
             request_id=uuid4().hex,
+            branch_id=branch_id,
             actor=ACTOR,
             intake_job_ids=tuple(completed),
             image_findings=image_findings or None,
@@ -203,10 +252,15 @@ class AnalysisWorker:
                 raise InvalidAnalysisInput("Stored object identity differs from intake")
         return records
 
-    def _set_job_state(self, job_id: int, state: str, failure_id: str | None = None) -> None:
+    def _set_job_state(self, job_id: int, instance_id: str, state: str) -> bool:
         with self.sessions.begin() as session:
-            session.get(AnalysisJob, job_id).state = state
-            if failure_id is not None:
-                session.add(SystemEvent(code="analysis_input_failed", correlation_id=failure_id))
+            changed = session.execute(
+                update(AnalysisJob)
+                .where(AnalysisJob.id == job_id, AnalysisJob.instance_id == instance_id)
+                .values(state=state)
+            ).rowcount
+            if changed and state == "failed":
+                session.add(SystemEvent(code="analysis_input_failed", correlation_id=instance_id))
                 LOGGER.warning("analysis_input_failed")
+        return bool(changed)
 

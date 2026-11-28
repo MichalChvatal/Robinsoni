@@ -1,4 +1,4 @@
-"""Independent local metadata analysis command."""
+"""Independent local MR analysis command."""
 
 import argparse
 import logging
@@ -6,13 +6,13 @@ from pathlib import Path
 
 from .cli import configure_logging
 from .config import load_config
-from .protocols.manager import load_protocol
+from .protocols.manager import load_protocol_candidates
 from .services.analysis_worker import open_worker
 from .services.shutdown import shutdown_event
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Local MR metadata analysis worker (DEMO)")
+    parser = argparse.ArgumentParser(description="Local MR quality analysis worker")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--protocol", type=Path, required=True)
     parser.add_argument("--once", action="store_true", help="Process one pass and exit")
@@ -22,7 +22,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         config = load_config(args.config)
-        protocol = load_protocol(args.protocol)
+        protocols = load_protocol_candidates(args.protocol)
         configure_logging(
             config.storage_root, filename="analysis.log", console=args.stop_file is None
         )
@@ -32,14 +32,20 @@ def main() -> int:
     stopped = shutdown_event(args.stop_file)
     logger = logging.getLogger("mr_quality_monitor.worker")
     try:
-        with open_worker(config.storage_root, protocol) as worker:
+        with open_worker(config.storage_root, protocols, config) as worker:
             if args.retry_failed:
                 worker.retry_failed()
-            logger.info("analysis_started")
+            selected = [f"{p.protocol.protocol_id}:{p.protocol.version}" for p in protocols]
+            logger.info(
+                "analysis_started protocol_candidates=%s",
+                ", ".join(selected),
+            )
             if args.ready_file is not None:
                 args.ready_file.touch()
             while not stopped.is_set():
-                failures = worker.run_once(stopped)
+                failures = worker.run_once(
+                    stopped, defer_new_study=config.single_active_study and not args.once
+                )
                 if args.once:
                     return int(bool(failures))
                 stopped.wait(2)

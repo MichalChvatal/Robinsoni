@@ -15,7 +15,7 @@ from mr_quality_monitor.database.models import (
 from mr_quality_monitor.dicom.storage import InvalidDicom, Storage
 from mr_quality_monitor.process_lock import ReceiverLock
 from pydicom import dcmread
-from pydicom.uid import ExplicitVRLittleEndian
+from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 from sqlalchemy import event, func, select
 
 
@@ -33,6 +33,33 @@ def receive(store, image):
 def count(store, model):
     with store.sessions() as session:
         return session.scalar(select(func.count()).select_from(model))
+
+
+def test_single_study_recovery_keeps_latest_and_removes_old_files(tmp_path, image):
+    old = Storage(tmp_path, minimum_free_bytes=0)
+    new = deepcopy(image)
+    new.StudyInstanceUID, new.SeriesInstanceUID, new.SOPInstanceUID = (
+        generate_uid(), generate_uid(), generate_uid()
+    )
+    try:
+        assert receive(old, image) == "stored"
+        conflict = deepcopy(image)
+        conflict.PixelData = bytes([99]) * len(image.PixelData)
+        assert receive(old, conflict) == "conflict"
+        assert receive(old, new) == "stored"
+    finally:
+        old.close()
+    current = Storage(tmp_path, minimum_free_bytes=0, single_active_study=True)
+    try:
+        current.recover()
+        assert count(current, DicomInstance) == count(current, IntakeRecord) == 1
+        assert count(current, ReceptionEvent) == 1
+        assert not list((tmp_path / "quarantine").glob("*.dcm"))
+        assert len(list((tmp_path / "objects").glob("*.dcm"))) == 1
+        assert receive(current, image) == "discarded"
+        assert receive(current, new) == "duplicate"
+    finally:
+        current.close()
 
 
 def test_stores_and_deduplicates_with_one_job(store, image):

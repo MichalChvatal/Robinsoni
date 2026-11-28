@@ -1,14 +1,23 @@
 import importlib
+import json
 import os
 import socket
 import threading
 import time
+from copy import deepcopy
 from dataclasses import replace
+from threading import Event
+from types import SimpleNamespace
 
 import pytest
 from mr_quality_monitor.config import ReceiverConfig
+from mr_quality_monitor.dicom.sender import SendResult
+from mr_quality_monitor.dicom.storage import Storage
 from mr_quality_monitor.gui.presentation import COLORS, STATUS_SYMBOLS, STATUS_TEXT
 from mr_quality_monitor.gui.view_data import MonitorReader
+from mr_quality_monitor.protocols.manager import load_protocol_candidates
+from mr_quality_monitor.services.analysis_worker import open_worker
+from pydicom.uid import generate_uid
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
@@ -39,6 +48,156 @@ def close_window(app, window):
     window.close()
     wait_for(app, lambda: not window.reader_thread.isRunning())
     app.processEvents()
+
+
+def test_sender_explains_intentionally_discarded_images(app, tmp_path):
+    sender_window = importlib.import_module("mr_quality_monitor.gui.sender").SenderWindow
+    window = sender_window(ReceiverConfig(storage_root=tmp_path))
+    window.transfer = SimpleNamespace(
+        result=SendResult(discarded=3), error="", deleteLater=lambda: None
+    )
+    try:
+        window.show_result()
+        message = window.status.text()
+        assert "Mimo aktivní vyšetření: 3" in message
+        assert "Spustit aplikaci.cmd" in message
+        assert "Chyby: 0" in message
+        assert "Poslední chyba" not in message
+    finally:
+        window.close()
+
+
+def test_live_checklist_and_completion(app, tmp_path, image, protocol_data, monkeypatch):
+    protocol_data.update(schema_version=2, mode="CLINICAL", approved_by="Software tests")
+    protocol_data["study_identifiers"] = [
+        {"field": "StudyDescription", "constraint": {"kind": "exact", "value": "TEST protocol"}}
+    ]
+    required = protocol_data["sequences"][0]
+    required["completion"]["expected_members"] = 1
+    optional = deepcopy(required)
+    optional.update(sequence_id="OPTIONAL", order=2, display_name="Optional", required=False)
+    optional["identifiers"][1]["constraint"]["value"] = "optional"
+    protocol_data["sequences"].append(optional)
+    path = tmp_path / "clinical.yaml"
+    path.write_text(json.dumps(protocol_data), encoding="utf-8")
+    config = ReceiverConfig(storage_root=tmp_path, single_active_study=True)
+    storage = Storage(tmp_path, 0, single_active_study=True)
+
+    def receive(dataset):
+        return storage.receive(
+            dataset, str(dataset.file_meta.TransferSyntaxUID), "MR_TEST", "127.0.0.1"
+        )
+
+    image.SeriesDescription = "localizer"
+    assert receive(image) == "stored"
+    storage.recover(reset_study=True)
+    assert not list((tmp_path / "objects").glob("*.dcm"))
+    window = MainWindow(config, refresh_interval_ms=60000)
+    window.show()
+
+    def refresh(predicate):
+        window.refresh()
+        wait_for(app, predicate)
+
+    try:
+        wait_for(app, lambda: window.snapshot is not None)
+        assert not window.snapshot.rows and window.snapshot.completion is None
+        assert "první data z MR" in window.message_label.text()
+        assert receive(image) == "stored"
+        with open_worker(tmp_path, load_protocol_candidates(path), config) as worker:
+            assert worker.run_once(Event()) == 0
+            refresh(lambda: window.snapshot.study_uid == str(image.StudyInstanceUID))
+            assert "Rozpoznává se protokol" in window.message_label.text()
+            assert window.snapshot.completion is None
+
+            recognized = deepcopy(image)
+            recognized.SOPInstanceUID, recognized.SeriesInstanceUID = generate_uid(), generate_uid()
+            recognized.StudyDescription = "TEST protocol"
+            assert receive(recognized) == "stored"
+            assert worker.run_once(Event(), defer_new_study=True) == 0
+            refresh(lambda: window.snapshot.completion is not None)
+            assert [row.status for row in window.snapshot.rows] == ["GRAY", "GRAY"]
+            assert not window.snapshot.history
+
+            recognized.SeriesDescription = "t2"
+            recognized.SOPInstanceUID, recognized.SeriesInstanceUID = generate_uid(), generate_uid()
+            recognized.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+            recognized.ImagePositionPatient = [0, 0, 0]
+            recognized.PixelSpacing = [1, 1]
+            recognized.RepetitionTime, recognized.EchoTime = 4000, 100
+            assert receive(recognized) == "stored"
+            assert worker.run_once(Event()) == 0
+            refresh(lambda: window.snapshot.rows[0].status == "GREEN")
+            assert "Požadavky splněny" in window.study_findings.toPlainText()
+            monkeypatch.setattr(
+                QtWidgets.QMessageBox,
+                "question",
+                lambda *_: QtWidgets.QMessageBox.StandardButton.Yes,
+            )
+            monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *_: None)
+            window.finalize_button.click()
+            wait_for(app, lambda: window.completion_label.text().startswith("DONE"))
+
+            # New data on the same study invalidates the verdict immediately.
+            recognized.SOPInstanceUID, recognized.SeriesInstanceUID = generate_uid(), generate_uid()
+            recognized.RepetitionTime = 3300
+            assert receive(recognized) == "stored"
+            refresh(lambda: window.snapshot.stale)
+            assert "probíhá" in window.completion_label.text()
+            assert worker.run_once(Event()) == 0
+            refresh(lambda: window.snapshot.rows[0].status == "ORANGE")
+
+            recognized.SOPInstanceUID, recognized.SeriesInstanceUID = generate_uid(), generate_uid()
+            recognized.RepetitionTime = 2000
+            assert receive(recognized) == "stored"
+            assert worker.run_once(Event()) == 0
+            refresh(lambda: window.snapshot.rows[0].status == "RED")
+
+            replacement = deepcopy(image)
+            replacement.StudyInstanceUID = generate_uid()
+            replacement.StudyDescription = "TEST protocol"
+            replacement.SOPInstanceUID = generate_uid()
+            replacement.SeriesInstanceUID = generate_uid()
+            assert receive(replacement) == "stored"
+            assert worker.run_once(Event()) == 0
+            refresh(lambda: window.snapshot.study_uid == str(replacement.StudyInstanceUID))
+            assert [row.status for row in window.snapshot.rows] == ["GRAY", "GRAY"]
+            assert receive(recognized) == "discarded"
+            window.finalize_button.click()
+            wait_for(app, lambda: window.completion_label.text().startswith("INCOMPLETE"))
+            assert "Chybí povinná sekvence: DEMO T2" in window.study_findings.toPlainText()
+    finally:
+        close_window(app, window)
+        storage.close()
+
+
+def test_monitor_switches_to_new_study_and_closes_previous_detail(app, tmp_path, image):
+    config = ReceiverConfig(storage_root=tmp_path, single_active_study=True)
+    storage = Storage(tmp_path, 0, single_active_study=True)
+    window = MainWindow(config, refresh_interval_ms=60000)
+    window.show()
+    try:
+        syntax = str(image.file_meta.TransferSyntaxUID)
+        assert storage.receive(image, syntax, "MR_TEST", "127.0.0.1") == "stored"
+        wait_for(app, lambda: not window.busy and window.snapshot is not None)
+        window.refresh()
+        wait_for(app, lambda: window.study_uid == str(image.StudyInstanceUID))
+        assert not window.study_combo.isVisible()
+        window.sequence_table.selectRow(0)
+        window.sequence_details_button.click()
+        assert window.detail_dialog.isVisible()
+
+        image.StudyInstanceUID = generate_uid()
+        image.SeriesInstanceUID = generate_uid()
+        image.SOPInstanceUID = generate_uid()
+        assert storage.receive(image, syntax, "MR_TEST", "127.0.0.1") == "stored"
+        window.refresh()
+        wait_for(app, lambda: window.study_uid == str(image.StudyInstanceUID))
+        assert not window.detail_dialog.isVisible()
+        assert window.snapshot.received == 1 and window.snapshot.pending == 1
+    finally:
+        close_window(app, window)
+        storage.close()
 
 
 def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
@@ -85,7 +244,7 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         ) == QtGui.QColor(COLORS["RED"][0])
         assert "kritická" in window.detail.heading.text()
         assert "TR: 6000 ms" in window.detail.summary.text()
-        assert window.detail.checks.rowCount() == 9
+        assert window.detail.checks.rowCount() == 3
         assert window.detail.timeline.rowCount() == 1
         tree = window.detail.metadata
         window.detail.tabs.setCurrentIndex(window.detail.tabs.indexOf(tree))
@@ -172,6 +331,78 @@ def test_critical_overview_groups_findings_and_marks_stale(app, gui_demo):
     assert "Čas echa" not in explanation
     detail.show_row(replace(row, evaluations=()))
     assert detail.explanation.text() == "Konkrétní důvod v uloženém výsledku chybí."
+
+
+def test_requirements_show_the_image_frame_and_acquisition(app, gui_demo):
+    row = MonitorReader(gui_demo.root).read().rows[2]
+    evaluation = row.evaluations[0]
+    check = next(item for item in evaluation["checks"] if item["sop_uid"])
+    uid = check["sop_uid"]
+    record = next(
+        record for record in row.records
+        if record["fields"]["SOPInstanceUID"]["value"] == uid
+    )
+    fields = {
+        **record["fields"],
+        "SeriesNumber": {"state": "known", "value": 7},
+        "InstanceNumber": {"state": "known", "value": 12},
+    }
+    first = {**evaluation, "checks": [check, check, {**check, "frame_index": 1}]}
+    second = {
+        **evaluation, "group_key": "another-acquisition",
+        "checks": [{**check, "sop_uid": None, "frame_index": None}],
+    }
+    detail = importlib.import_module("mr_quality_monitor.gui.sequence_detail").SequenceDetail()
+    detail.show_row(
+        replace(
+            row,
+            records=({**record, "fields": fields}, {**record, "fields": fields, "frame_index": 1}),
+            evaluations=(first, second),
+        )
+    )
+    table = detail.checks
+    assert table.horizontalHeaderItem(1).text() == "Vyhodnocená data"
+    assert table.rowCount() == 2
+    assert table.item(0, 1).text() == "Společné pro 2 snímků / rámců"
+    assert "Akv. 1 · Série 7 · Snímek 12" in table.item(0, 1).toolTip()
+    assert f"SOP Instance UID: {uid}" in table.item(0, 1).toolTip()
+    assert "rámec 2" in table.item(0, 1).toolTip()
+    assert table.item(1, 1).text() == "Akv. 2 · Souhrn akvizice"
+    assert [detail.acquisitions.item(index, 0).text() for index in range(2)] == ["1", "2"]
+    detail.show_row(replace(row, evaluations=()))
+    assert table.item(0, 1).text() == "Plán sekvence"
+
+
+def test_requirements_group_common_values_and_keep_image_exceptions(app, gui_demo):
+    row = MonitorReader(gui_demo.root).read().rows[2]
+    evaluation = row.evaluations[0]
+    original = next(item for item in evaluation["checks"] if item["sop_uid"])
+    common = [
+        {**original, "sop_uid": f"1.2.{number}", "paths": [f"image/{number}/TR"]}
+        for number in range(3)
+    ]
+    different = {**original, "sop_uid": "1.2.9", "actual": 7000}
+    missing = {
+        **original, "sop_uid": "1.2.10", "actual": None,
+        "status": "GRAY", "reason": "required_metadata_absent",
+    }
+    detail = importlib.import_module("mr_quality_monitor.gui.sequence_detail").SequenceDetail()
+    detail.show_row(replace(
+        row,
+        evaluations=(
+            {**evaluation, "checks": [*common[:2], different, missing]},
+            {**evaluation, "checks": common[2:]},
+        ),
+    ))
+    table = detail.checks
+    assert table.rowCount() == 3
+    assert table.item(0, 1).text() == "Společné pro 3 snímků / rámců"
+    assert "Akv. 2" in table.item(0, 1).toolTip()
+    assert all(f"image/{number}/TR" in table.item(0, 5).text() for number in range(3))
+    assert table.item(1, 2).text() == "7000"
+    assert "1.2.9" in table.item(1, 1).text()
+    assert table.item(2, 4).text() == STATUS_TEXT["GRAY"]
+    assert "1.2.10" in table.item(2, 1).text()
 
 
 def test_late_response_for_old_selection_is_discarded(app, gui_demo):
@@ -273,7 +504,7 @@ def test_mou_shows_specific_b_value_error_and_closes_study(app, tmp_path, image,
     from mr_quality_monitor.services.analysis_worker import open_worker
     from test_prostate import private_b, series
 
-    snapshot = load_protocol(Path("config/protocols/mou_prostate.yaml"))
+    snapshot = load_protocol(Path("tests/fixtures/protocols/mou_prostate.yaml"))
     image.PixelData = bytes(300 * 300 * 2)
 
     def low_dwi(positions):

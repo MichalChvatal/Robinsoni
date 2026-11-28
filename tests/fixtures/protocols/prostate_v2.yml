@@ -1,0 +1,439 @@
+schema_version: 3
+protocol_id: PROSTATE_CLINICAL_MULTIVENDOR
+version: "1.0"
+mode: CLINICAL
+
+display_name: "MRI prostaty - klinický multi-vendor protokol"
+
+source: "pravidla.md"
+
+study_identifiers:
+  - field: BodyPartExamined
+    constraint:
+      kind: contains
+      value: PROSTATE
+      case_sensitive: false
+
+sequences:
+
+  #
+  # SEGMENTACE
+  #
+
+  - sequence_id: PROSTATE_SEGM
+    order: 1
+    display_name: "Prostate Segmentation"
+    required: false
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    group: OTHER
+    role: prostate_seg
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm } }
+
+  - sequence_id: PROSTATE_SEGM_MASK
+    order: 2
+    display_name: "Prostate Segmentation Mask"
+    required: false
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    group: OTHER
+    role: prostate_mask
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: Prostate_Segm_MASK, case_sensitive: false } }
+
+  #
+  # T2W
+  #
+
+  - sequence_id: T2_TRA
+    order: 3
+
+    display_name: "T2W Axial"
+
+    group: T2W
+    role: t2w_tra
+
+    required: true
+    missing_severity: warning
+
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: OrientationLabel, constraint: { kind: exact, value: TRA } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: T2, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2, case_sensitive: false } }
+      - { field: ProtocolName, constraint: { kind: contains, value: t2, case_sensitive: false } }
+
+    parameters:
+
+      - rule_id: t2_tra_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.1
+          maximum: 3.0
+        severity: critical
+
+      - rule_id: t2_tra_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint:
+          kind: target
+          target: 0.0
+          tolerance: 0.05
+          tolerance_kind: absolute
+        severity: critical
+
+      - rule_id: t2_tra_fov
+        field: FieldOfView
+        components: all
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 120
+          maximum: 200
+        severity: critical
+
+      - rule_id: t2_tra_phase_resolution
+        field: PhaseResolution
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.01
+          maximum: 0.7
+        severity: critical
+
+      - rule_id: t2_tra_frequency_resolution
+        field: FrequencyResolution
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.01
+          maximum: 0.7
+        severity: critical
+
+  - sequence_id: T2_COR
+    order: 4
+
+    display_name: "T2W Coronal"
+
+    group: T2W
+    role: t2w_cor
+
+    required: false
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: OrientationLabel, constraint: { kind: exact, value: COR } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: T2, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2, case_sensitive: false } }
+      - { field: ProtocolName, constraint: { kind: contains, value: t2, case_sensitive: false } }
+
+  - sequence_id: T2_SAG
+    order: 5
+
+    display_name: "T2W Sagittal"
+
+    group: T2W
+    role: t2w_sag
+
+    required: false
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: OrientationLabel, constraint: { kind: exact, value: SAG } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: T2, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2, case_sensitive: false } }
+      - { field: ProtocolName, constraint: { kind: contains, value: t2, case_sensitive: false } }
+
+  #
+  # DWI LOW B
+  #
+
+  - sequence_id: DWI_LOW_B
+    order: 6
+
+    display_name: "Diffusion Low b"
+
+    group: DWI
+    role: dwi_low_b
+
+    required: true
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: DiffusionBValue, unit: s/mm2, constraint: { kind: range, minimum: 0, maximum: 100 } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: RESOLVE, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: ADC, case_sensitive: false } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: DIFFUSION, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: diff, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: dwi, case_sensitive: false } }
+
+    parameters:
+
+      - rule_id: dwi_low_thickness
+        field: SliceThickness
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.1
+          maximum: 4.0
+        severity: critical
+
+      - rule_id: dwi_low_gap
+        field: SliceGap
+        unit: mm
+        constraint:
+          kind: target
+          target: 0.0
+          tolerance: 0.05
+          tolerance_kind: absolute
+        severity: critical
+
+  #
+  # DWI INTERMEDIATE
+  #
+
+  - sequence_id: DWI_INTERMEDIATE_B
+    order: 7
+
+    display_name: "Diffusion Intermediate b"
+
+    group: DWI
+    role: dwi_intermediate_b
+
+    required: true
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: DiffusionBValue, unit: s/mm2, constraint: { kind: range, minimum: 800, maximum: 1000 } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: RESOLVE, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: ADC, case_sensitive: false } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: DIFFUSION, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: diff, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: dwi, case_sensitive: false } }
+
+    parameters:
+
+      - rule_id: dwi_int_thickness
+        field: SliceThickness
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.1
+          maximum: 4.0
+
+      - rule_id: dwi_int_gap
+        field: SliceGap
+        unit: mm
+        constraint:
+          kind: target
+          target: 0.0
+          tolerance: 0.05
+          tolerance_kind: absolute
+
+  #
+  # ADC
+  #
+
+  - sequence_id: DWI_ADC
+    order: 8
+
+    display_name: "ADC Map"
+
+    group: DWI
+    role: dwi_adc
+
+    required: true
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: ADC, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: RESOLVE, case_sensitive: false } }
+
+  #
+  # HIGH B
+  #
+
+  - sequence_id: DWI_HIGH_B
+    order: 9
+
+    display_name: "Diffusion High b"
+
+    group: DWI
+    role: dwi_high_b
+
+    required: true
+    image_required: true
+
+    completion:
+      mode: geometric_stack
+      min_members: 5
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: DiffusionBValue, unit: s/mm2, constraint: { kind: range, minimum: 1400, maximum: 10000 } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: RESOLVE, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: excludes, value: ADC, case_sensitive: false } }
+    any_identifiers:
+      - { field: ImageType, components: any, constraint: { kind: contains, value: DIFFUSION, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: diff, case_sensitive: false } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: dwi, case_sensitive: false } }
+
+    parameters:
+
+      - rule_id: dwi_high_thickness
+        field: SliceThickness
+        unit: mm
+        constraint:
+          kind: range
+          minimum: 0.1
+          maximum: 4.0
+
+      - rule_id: dwi_high_gap
+        field: SliceGap
+        unit: mm
+        constraint:
+          kind: target
+          target: 0.0
+          tolerance: 0.05
+          tolerance_kind: absolute
+
+  #
+  # RESOLVE
+  #
+
+  - sequence_id: DWI_RESOLVE
+    order: 10
+
+    display_name: "RESOLVE"
+
+    group: DWI
+    role: dwi_resolve
+
+    required: false
+    image_required: true
+
+    completion: { mode: geometric_stack, min_members: 5 }
+
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: RESOLVE, case_sensitive: false } }
+
+study_rules:
+
+  min_valid_groups:
+
+    - rule_id: minimum_two_valid_t2
+
+      group: T2W
+
+      min_valid_count: 2
+
+      preferred_sequence_id: T2_TRA
+
+      severity: critical
+
+      action: >
+        Musí být přítomny alespoň dvě validní T2W sekvence.
+        Preferována je přítomnost T2 TRA.
+
+  fallback_groups:
+
+    - rule_id: dwi_resolve_required
+
+      primary_sequence_ids:
+
+        - DWI_LOW_B
+        - DWI_INTERMEDIATE_B
+        - DWI_ADC
+        - DWI_HIGH_B
+
+      fallback_sequence_ids:
+
+        - DWI_RESOLVE
+
+      severity: critical
+
+      action: >
+        Pokud nejsou všechny difuzní sekvence přítomny
+        nebo nejsou dostatečné kvality,
+        musí být provedena sekvence RESOLVE.
+
+  geometry_alignments:
+
+    - rule_id: dwi_t2_alignment
+
+      reference_sequence_id: T2_TRA
+
+      target_sequence_ids:
+
+        - DWI_LOW_B
+        - DWI_INTERMEDIATE_B
+        - DWI_ADC
+        - DWI_HIGH_B
+
+      position_tolerance_mm: 1.0
+      spacing_tolerance_mm: 0.1
+      orientation_tolerance: 0.002
+
+      severity: warning
+
+  coverage_checks:
+
+    - rule_id: prostate_coverage
+
+      segmentation_sequence_id: PROSTATE_SEGM_MASK
+
+      target_sequence_ids:
+
+        - T2_TRA
+        - DWI_LOW_B
+
+      margin_mm: 3.5
+
+      severity: warning
+
+      action: >
+        Ověřit kompletní pokrytí prostaty pomocí segmentace.

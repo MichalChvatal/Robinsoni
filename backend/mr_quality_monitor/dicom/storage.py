@@ -1,6 +1,7 @@
 """Durable, idempotent intake with a recoverable filesystem/database boundary."""
 
 import hashlib
+import logging
 import os
 import shutil
 import threading
@@ -21,6 +22,7 @@ from pydicom.uid import (
 )
 from sqlalchemy import select
 
+from ..analysis.sequence_identifier import match_study_protocol
 from ..database.database import open_database
 from ..database.models import (
     AnalysisJob,
@@ -29,9 +31,13 @@ from ..database.models import (
     ReceptionEvent,
     SystemEvent,
 )
+from ..database.study_retention import retain_study
+from .metadata_parser import parse_dataset
 
 STORAGE_CLASSES = (str(MRImageStorage), str(SecondaryCaptureImageStorage))
+DISCARDED_STUDY_STATUS = 0xC212
 TRANSFER_SYNTAXES = (str(ExplicitVRLittleEndian), str(ImplicitVRLittleEndian))
+LOGGER = logging.getLogger(__name__)
 
 
 class InvalidDicom(ValueError):
@@ -106,10 +112,21 @@ class Storage:
     pynetdicom handler threads. No network or image analysis runs under DB transactions.
     """
 
-    def __init__(self, root: Path, minimum_free_bytes: int = 104857600):
+    def __init__(
+        self, root: Path, minimum_free_bytes: int = 104857600, *,
+        single_active_study: bool = False, protocols=(),
+    ):
         self.root = root.resolve()
         self.minimum_free_bytes = minimum_free_bytes
         self.lock = threading.RLock()
+        self.single_active_study = single_active_study
+        self.active_study: str | None = None
+        self.active_protocol: str | None = None
+        self.protocol_candidates = tuple(
+            (snapshot, snapshot.protocol.study_identifiers) for snapshot in protocols
+        )
+        self.retired_studies: set[str] = set()
+        self.discarded_files: set[str] = set()
         for name in ("staging", "objects", "quarantine"):
             (self.root / name).mkdir(parents=True, exist_ok=True)
         self.engine, self.sessions = open_database(self.root / "intake.sqlite3")
@@ -125,13 +142,20 @@ class Storage:
     def receive(
         self, dataset: Dataset, transfer_syntax: str, source_ae: str, source_ip: str
     ) -> str:
-        """Persist an image and return stored/duplicate/conflict after the DB commit.
+        """Persist an image or discard a late image of a replaced study.
 
         Failures leave a journal record for recovery; they never imply success.
         Source identifiers are recorded in the local audit DB, never in log messages.
         """
         validate_dataset(dataset, transfer_syntax)
         with self.lock:
+            self._unlink_discarded()
+            protocol_id = (
+                self._identify_protocol(dataset)
+                if str(dataset.StudyInstanceUID) in self.retired_studies else None
+            )
+            if self._discard_image(dataset, protocol_id):
+                return "discarded"
             # Reserve for pixels plus metadata; actual ENOSPC is handled as a storage failure.
             estimated_size = len(dataset.PixelData) + 1024 * 1024
             if shutil.disk_usage(self.root).free < self.minimum_free_bytes + estimated_size:
@@ -192,7 +216,15 @@ class Storage:
         saved = dcmread(path)
         validate_dataset(saved, str(saved.file_meta.TransferSyntaxUID))
         digest = checksum(path)
+        study_uid = str(saved.StudyInstanceUID)
+        protocol_id = self._identify_protocol(saved)
+        if self._discard_image(saved, protocol_id):
+            self._discard_uncommitted(record_id)
+            return "discarded"
+        switching = False
         with self.sessions.begin() as session:
+            if self.single_active_study:
+                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
             record = session.get(IntakeRecord, record_id)
             if record.checksum != digest or record.sop_uid != str(saved.SOPInstanceUID):
                 raise InvalidDicom("journal_integrity_mismatch")
@@ -200,10 +232,19 @@ class Storage:
                 select(DicomInstance).where(DicomInstance.sop_uid == record.sop_uid)
             )
             if existing is None:
+                protocol_changed = self._protocol_changed(protocol_id)
+                switching = self.single_active_study and (
+                    self.active_study != study_uid or protocol_changed
+                )
+                if switching:
+                    retained_uid = "" if protocol_changed and self.active_study == study_uid else (
+                        study_uid
+                    )
+                    retired, files = retain_study(session, retained_uid, record.received_at)
                 instance = DicomInstance(
                     id=record_id,
                     sop_uid=record.sop_uid,
-                    study_uid=str(saved.StudyInstanceUID),
+                    study_uid=study_uid,
                     series_uid=str(saved.SeriesInstanceUID),
                     sop_class_uid=str(saved.SOPClassUID),
                     transfer_syntax_uid=str(saved.file_meta.TransferSyntaxUID),
@@ -229,9 +270,62 @@ class Storage:
             session.add(
                 ReceptionEvent(intake_id=record_id, instance_id=instance_id, outcome=outcome)
             )
+        if switching:
+            self.active_study = study_uid
+            self.active_protocol = protocol_id
+            self.retired_studies.update(retired)
+            self.retired_studies.discard(study_uid)
+            self.discarded_files.update(files)
+            self._unlink_discarded()
+        elif outcome == "stored" and protocol_id:
+            self.active_protocol = protocol_id
         if outcome == "duplicate":
             path.unlink(missing_ok=True)
         return outcome
+
+    def _identify_protocol(self, dataset: Dataset) -> str | None:
+        if (
+            not self.single_active_study
+            or not self.protocol_candidates
+            or dataset.SOPClassUID != MRImageStorage
+        ):
+            return None
+        try:
+            match = match_study_protocol(parse_dataset(dataset), self.protocol_candidates)
+        except ValueError:
+            return None
+        return match.protocol.protocol_id if match else None
+
+    def _protocol_changed(self, protocol_id: str | None) -> bool:
+        return bool(protocol_id and self.active_protocol and protocol_id != self.active_protocol)
+
+    def _discard_image(self, dataset: Dataset, protocol_id: str | None) -> bool:
+        study_uid = str(dataset.StudyInstanceUID)
+        return (study_uid in self.retired_studies and not self._protocol_changed(protocol_id)) or (
+            self.single_active_study
+            and dataset.SOPClassUID != MRImageStorage
+            and study_uid != self.active_study
+        )
+
+    def _discard_uncommitted(self, record_id: str) -> None:
+        with self.sessions.begin() as session:
+            session.delete(session.get(IntakeRecord, record_id))
+        self.discarded_files.add(record_id)
+        self._unlink_discarded()
+
+    def _unlink_discarded(self) -> None:
+        for record_id in tuple(self.discarded_files):
+            try:
+                for area in ("objects", "staging", "quarantine"):
+                    self.path(record_id, area).unlink(missing_ok=True)
+            except OSError:
+                LOGGER.warning("discarded_file_cleanup_pending")
+            else:
+                self.discarded_files.remove(record_id)
+
+    def retry_discarded_cleanup(self) -> None:
+        with self.lock:
+            self._unlink_discarded()
 
     def _interrupt(self, record_id: str) -> None:
         """Quarantine an unconfirmed intake and retain a non-clinical audit event."""
@@ -244,7 +338,7 @@ class Storage:
             session.get(IntakeRecord, record_id).state = "interrupted"
             session.add(ReceptionEvent(intake_id=record_id, outcome="interrupted"))
 
-    def recover(self) -> dict[str, int]:
+    def recover(self, *, reset_study: bool = False) -> dict[str, int]:
         """Reconcile incomplete receipts before accepting any new association.
 
         Never reanalyse duplicates. Missing/corrupt previously committed objects are
@@ -252,10 +346,33 @@ class Storage:
         """
         counts = {"recovered": 0, "interrupted": 0, "orphaned": 0}
         with self.lock:
+            latest = None
+            if self.single_active_study:
+                with self.sessions.begin() as session:
+                    session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                    if not reset_study:
+                        latest = session.execute(
+                            select(DicomInstance.study_uid, DicomInstance.received_at)
+                            .order_by(DicomInstance.received_at.desc(), DicomInstance.id.desc())
+                            .limit(1)
+                        ).first()
+                    self.active_study = latest.study_uid if latest else None
+                    retired, files = retain_study(
+                        session, self.active_study or "", reset=reset_study
+                    )
+                if reset_study:
+                    self.active_protocol = None
+                    self.retired_studies.clear()
+                else:
+                    self.retired_studies.update(retired)
+                self.discarded_files.update(files)
+                self._unlink_discarded()
             with self.sessions() as session:
                 pending = list(
                     session.scalars(
-                        select(IntakeRecord).where(IntakeRecord.state.in_(("receiving", "staged")))
+                        select(IntakeRecord)
+                        .where(IntakeRecord.state.in_(("receiving", "staged")))
+                        .order_by(IntakeRecord.received_at, IntakeRecord.id)
                     )
                 )
             for record in pending:
@@ -278,6 +395,14 @@ class Storage:
                     self._interrupt(record.id)
                     counts["interrupted"] += 1
                     continue
+                if (
+                    latest
+                    and record.received_at < latest.received_at
+                    and str(saved.StudyInstanceUID) != latest.study_uid
+                ):
+                    self._discard_uncommitted(record.id)
+                    counts["interrupted"] += 1
+                    continue
                 with self.sessions.begin() as session:
                     current = session.get(IntakeRecord, record.id)
                     current.state, current.checksum = "staged", digest
@@ -293,9 +418,18 @@ class Storage:
             for record in records.values():
                 if record.state == "duplicate":
                     self.path(record.id).unlink(missing_ok=True)
-            for area in ("staging", "objects"):
+            areas = ("staging", "objects", "quarantine") if self.single_active_study else (
+                "staging", "objects"
+            )
+            for area in areas:
                 for path in (self.root / area).glob("*.dcm"):
                     if path.stem not in records:
+                        if self.single_active_study:
+                            file_id = path.stem.removeprefix("orphan-")
+                            if len(file_id) == 32 and all(c in "0123456789abcdef" for c in file_id):
+                                path.unlink(missing_ok=True)
+                                counts["orphaned"] += 1
+                            continue
                         target = self.root / "quarantine" / f"orphan-{uuid4().hex}.dcm"
                         os.replace(path, target)
                         counts["orphaned"] += 1
