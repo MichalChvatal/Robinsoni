@@ -1,0 +1,238 @@
+# Public-standard reference profile. This is NOT a locally approved scanner protocol.
+# Source: ACR–ESUR–AdMeTech, PI-RADS v2.1 (2019), Section I.B and Section IV.
+# ACR lists PI-RADS v2.1 as the current release: https://www.acr.org/Clinical-Resources/Clinical-Tools-and-Reference/Reporting-and-Data-Systems/PI-RADS
+# Official document: https://www.acr.org/-/media/ACR/Files/RADS/PI-RADS/PIRADS-V2-1.pdf
+# DICOM SeriesDescription naming is not standardized by PI-RADS. The selectors below
+# use generic English terms and MUST be mapped to the scanner's actual series labels
+# before operational use. A metadata pass cannot establish image quality or every
+# PI-RADS requirement; see limitations noted below the sequence definitions.
+schema_version: 2
+protocol_id: PROSTATE_PIRADS_V21
+version: "1.0"
+mode: CLINICAL
+display_name: "Prostate MRI — PI-RADS v2.1 reference profile"
+author: "ACR–ESUR–AdMeTech PI-RADS Steering Committee (source standard)"
+source: "ACR–ESUR–AdMeTech, PI-RADS v2.1 (2019), Section I.B and Section IV; see URLs in file header"
+approved_by: "Source attribution only; NOT locally approved for clinical deployment"
+
+sequences:
+  # PI-RADS: axial (straight or oblique along prostate long axis) plus at least
+  # one orthogonal plane. Names below are generic DICOM description selectors.
+  - sequence_id: T2_AXIAL
+    display_name: "T2W axial / oblique axial"
+    order: 1
+    required: true
+    group: T2W
+    role: t2w_axial
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: axial, case_sensitive: false}}
+    parameters: &t2_parameters
+      - rule_id: t2_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: target, target: 3.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: critical
+        action: "PI-RADS v2.1: acquire 3 mm T2W slices"
+      - rule_id: t2_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: {kind: target, target: 0.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: critical
+        action: "PI-RADS v2.1: use no gap between T2W slices"
+      - rule_id: t2_fov
+        field: FieldOfView
+        unit: mm
+        components: all
+        constraint: {kind: range, minimum: 120.0, maximum: 200.0}
+        severity: warning
+        on_missing: warning
+        action: "Review T2W FOV; PI-RADS gives a general 120–200 mm range and requires prostate/seminal-vesicle coverage"
+      - rule_id: t2_phase_resolution
+        field: PhaseResolution
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 0.7}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: T2W phase in-plane dimension ≤0.7 mm"
+      - rule_id: t2_frequency_resolution
+        field: FrequencyResolution
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 0.4}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: T2W frequency in-plane dimension ≤0.4 mm"
+
+  - sequence_id: T2_CORONAL
+    display_name: "T2W coronal orthogonal plane"
+    order: 2
+    required: false
+    group: T2W
+    role: t2w_coronal
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: coronal, case_sensitive: false}}
+    parameters: *t2_parameters
+
+  - sequence_id: T2_SAGITTAL
+    display_name: "T2W sagittal orthogonal plane"
+    order: 3
+    required: false
+    group: T2W
+    role: t2w_sagittal
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: T2, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: sagittal, case_sensitive: false}}
+    parameters: *t2_parameters
+
+  # PI-RADS v2.1 calls for axial T1W and T2W in prostate MR exams. T1W is
+  # deliberately not auto-identified here because the available metadata rules
+  # cannot reliably distinguish pre-contrast T1W from the DCE T1W series.
+
+  - sequence_id: DWI_ADC
+    display_name: "DWI-derived ADC map"
+    order: 4
+    required: true
+    group: DWI
+    role: dwi_adc
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: ADC, case_sensitive: false}}
+    parameters:
+      - rule_id: dwi_adc_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 4.0}
+        severity: critical
+        on_missing: critical
+        action: "PI-RADS v2.1: DWI/ADC slice thickness ≤4 mm"
+      - rule_id: dwi_adc_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: {kind: target, target: 0.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: acquire DWI/ADC without a slice gap"
+      - rule_id: dwi_adc_fov
+        field: FieldOfView
+        unit: mm
+        components: all
+        constraint: {kind: range, minimum: 160.0, maximum: 220.0}
+        severity: warning
+        on_missing: warning
+        action: "Review DWI FOV against PI-RADS v2.1's 160–220 mm range"
+      - rule_id: dwi_adc_phase_resolution
+        field: PhaseResolution
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 2.5}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: DWI phase in-plane dimension ≤2.5 mm"
+      - rule_id: dwi_adc_frequency_resolution
+        field: FrequencyResolution
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 2.5}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: DWI frequency in-plane dimension ≤2.5 mm"
+
+  # High-b image set is mandatory; PI-RADS allows direct acquisition or
+  # synthesis. The b-value constraint is omitted because this application's
+  # current range constraint requires an invented finite upper bound; check
+  # that an acquired or synthesized set with b ≥1400 s/mm² is present locally.
+  - sequence_id: DWI_HIGH_B
+    display_name: "DWI high-b image set (acquired or synthesized)"
+    order: 5
+    required: true
+    group: DWI
+    role: dwi_high_b
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: DWI, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: high, case_sensitive: false}}
+    parameters:
+      - rule_id: dwi_high_b_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: range, minimum: 0.0, maximum: 4.0}
+        severity: critical
+        on_missing: critical
+        action: "PI-RADS v2.1: DWI slice thickness ≤4 mm"
+      - rule_id: dwi_high_b_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: {kind: target, target: 0.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: acquire DWI without a slice gap"
+
+  # DCE is included for an mpMRI profile. PI-RADS v2.1 gives strict upper
+  # limits (<100 ms TR, <5 ms TE) and dynamic timing requirements; metadata
+  # normalization in this application does not currently expose the dynamic
+  # temporal resolution, total observation duration, or injection details.
+  - sequence_id: DCE_T1
+    display_name: "DCE T1W (mpMRI)"
+    order: 6
+    required: true
+    group: DCE
+    role: dce_t1
+    image_required: true
+    completion: {mode: geometric_stack, min_members: 1}
+    geometry_severity: critical
+    identifiers:
+      - {field: Modality, constraint: {kind: exact, value: MR}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: DCE, case_sensitive: false}}
+      - {field: SeriesDescription, constraint: {kind: contains, value: T1, case_sensitive: false}}
+    parameters:
+      - rule_id: dce_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: {kind: target, target: 3.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: critical
+        action: "PI-RADS v2.1: DCE slice thickness 3 mm"
+      - rule_id: dce_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: {kind: target, target: 0.0, tolerance: 0.0, tolerance_kind: absolute}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: acquire DCE without a slice gap"
+      - rule_id: dce_pixel_spacing
+        field: PixelSpacing
+        unit: mm
+        components: all
+        constraint: {kind: range, minimum: 0.0, maximum: 2.0}
+        severity: critical
+        on_missing: warning
+        action: "PI-RADS v2.1: DCE in-plane dimension ≤2 mm in both directions"
+
+study_rules:
+  min_valid_groups:
+    - rule_id: t2_axial_plus_orthogonal
+      group: T2W
+      min_valid_count: 2
+      preferred_sequence_id: T2_AXIAL
+      missing_preferred_severity: critical
+      severity: critical
+      action: "Acquire axial/oblique axial T2W and at least one orthogonal T2W plane"
