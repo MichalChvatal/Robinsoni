@@ -3,6 +3,7 @@
 import logging
 
 from PySide6.QtCore import QObject, QSignalBlocker, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,7 +17,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QSizePolicy,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -28,13 +28,20 @@ from ..database.repository import HistoryRepository
 from .fonts import ensure_font
 from .presentation import (
     COLORS,
-    STATUS_SYMBOLS,
     STATUS_TEXT,
     critical_description,
     effective_status,
     reason_text,
+    sequence_layer,
 )
-from .sequence_detail import SequenceDetail, color_item, table
+from .sequence_detail import (
+    BADGE_TOOLTIPS_ROLE,
+    ISSUES_ROLE,
+    SequenceDetail,
+    SequenceStatusDelegate,
+    color_item,
+    table,
+)
 from .view_data import MonitorReader
 
 LOG = logging.getLogger(__name__)
@@ -84,41 +91,6 @@ class ReadWorker(QObject):
             self.finalized.emit(generation, True)
 
 
-class StatusLegend(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum)
-        self.setAccessibleName("Legenda stavů sekvencí")
-        self.grid = QGridLayout(self)
-        self.grid.setContentsMargins(0, 0, 0, 0)
-        self.grid.setSpacing(6)
-        self.entries = []
-        for status, caption in STATUS_TEXT.items():
-            entry = label(caption)
-            entry.setWordWrap(False)
-            background, foreground = COLORS[status]
-            entry.setStyleSheet(
-                f"background: {background}; color: {foreground}; padding: 5px 8px;"
-                "border-radius: 5px;"
-            )
-            self.entries.append(entry)
-        self.columns = 0
-        self._arrange(2)
-
-    def _arrange(self, columns):
-        if columns == self.columns:
-            return
-        self.columns = columns
-        for index, entry in enumerate(self.entries):
-            self.grid.addWidget(entry, *divmod(index, columns))
-
-    def resizeEvent(self, event):
-        single_row_width = sum(entry.sizeHint().width() for entry in self.entries)
-        single_row_width += 3 * self.grid.horizontalSpacing()
-        self._arrange(4 if event.size().width() >= single_row_width else 2)
-        super().resizeEvent(event)
-
-
 class MainWindow(QMainWindow):
     request_read = Signal(int, object, object)
     request_finalize = Signal(int, str, str, object)
@@ -137,7 +109,7 @@ class MainWindow(QMainWindow):
         self.display_stale = True
         self.read_failed = False
         self.setWindowTitle("MR Quality Monitor")
-        self.resize(660, 540)
+        self.resize(840, 600)
         self.setMinimumSize(400, 330)
         self._build()
         self.reader_thread = QThread(self)
@@ -184,7 +156,7 @@ class MainWindow(QMainWindow):
             study_label.hide()
             self.study_combo.hide()
         outer.addLayout(selectors)
-        self.state_label = label("○ Čeká na data", "stateBadge")
+        self.state_label = label("Čeká na data", "stateBadge")
         outer.addWidget(self.state_label)
         startup_text = (
             "Čeká na první data z MR."
@@ -195,14 +167,14 @@ class MainWindow(QMainWindow):
         self.completion_label = label("", "detailHeading")
         self.completion_label.hide()
         outer.addWidget(self.completion_label)
-        self.legend = StatusLegend()
-        outer.addWidget(self.legend)
         self.sequence_table = table(["Sekvence"])
+        self.sequence_table.setItemDelegate(SequenceStatusDelegate(self.sequence_table))
         self.sequence_table.setObjectName("sequenceTable")
         self.sequence_table.setWordWrap(False)
         self.sequence_table.verticalHeader().setDefaultSectionSize(40)
         header = self.sequence_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header.sectionResized.connect(lambda *_: self.sequence_table.resizeRowsToContents())
         self.sequence_table.itemClicked.connect(self._open_sequence)
         self.sequence_table.itemActivated.connect(self._open_sequence)
         self.sequence_table.itemSelectionChanged.connect(self._row_selected)
@@ -395,13 +367,15 @@ class MainWindow(QMainWindow):
             self.message_label.setText(snapshot.message)
             self.message_label.setVisible(bool(snapshot.message))
             completion_labels = {
-                "in_progress": "Vyšetření probíhá",
+                "in_progress": "Vyšetření",
                 "done": "DONE — požadavky protokolu splněny",
                 "incomplete": "INCOMPLETE — nesplněné požadavky",
                 "verification_pending": "Úplnost čeká na ověření",
             }
             self.completion_label.setText(
-                completion_labels[snapshot.completion.state] if snapshot.completion else ""
+                f"{completion_labels[snapshot.completion.state]}: "
+                f"{snapshot.examination_name or 'Údaje o vyšetření zatím nejsou dostupné'}"
+                if snapshot.completion else ""
             )
             self.completion_label.setVisible(snapshot.completion is not None)
             self.finalize_button.setVisible(snapshot.can_finalize)
@@ -516,14 +490,33 @@ class MainWindow(QMainWindow):
             self.sequence_table.setRowCount(len(snapshot.rows))
             for index, row in enumerate(snapshot.rows):
                 status = effective_status(row, self._row_stale(row))
-                name = f"{row.name}  ·  {row.plan_role}" if row.plan_role else row.name
-                item = QTableWidgetItem(f"{STATUS_SYMBOLS[status]}  {name}")
+                name = f"{row.name} (nepovinná)" if row.plan_role == "Nepovinná" else row.name
+                item = QTableWidgetItem(name)
                 item.setData(Qt.ItemDataRole.UserRole, row.key)
                 description = f"{name} · {STATUS_TEXT[status]}"
-                item.setData(Qt.ItemDataRole.AccessibleTextRole, description)
-                item.setToolTip(description)
                 color_item(item, status)
+                verified = status != "GRAY" and not self._row_stale(row)
+                item.setBackground(QColor("#ffffff" if verified else COLORS["GRAY"][0]))
+                item.setForeground(QColor("#243449" if verified else COLORS["GRAY"][1]))
+                issues = []
+                tooltips = []
+                for image in (False, True):
+                    layer_status, text, tooltip = sequence_layer(
+                        row, image=image, stale=self._row_stale(row)
+                    )
+                    if layer_status in {"RED", "ORANGE"} or (
+                        not image and layer_status == "GREEN"
+                    ):
+                        issues.append((image, layer_status))
+                        title = "Obraz" if image else "Parametry"
+                        tooltips.append(f"{title} · {text}\n{tooltip}")
+                item.setData(ISSUES_ROLE, issues)
+                item.setData(BADGE_TOOLTIPS_ROLE, tooltips)
+                item.setData(
+                    Qt.ItemDataRole.AccessibleTextRole, "\n".join([description, *tooltips])
+                )
                 self.sequence_table.setItem(index, 0, item)
+            self.sequence_table.resizeRowsToContents()
             selected = next(
                 (index for index, row in enumerate(snapshot.rows) if row.key == self.row_key), 0
             )

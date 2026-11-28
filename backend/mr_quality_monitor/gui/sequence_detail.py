@@ -2,8 +2,8 @@
 
 import json
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QEvent, QRect, QSize, Qt
+from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QToolTip,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -34,6 +35,8 @@ from .presentation import (
 from .view_data import MonitorRow, known, measured
 
 STATUS_ROLE = Qt.ItemDataRole.UserRole + 1
+ISSUES_ROLE = Qt.ItemDataRole.UserRole + 2
+BADGE_TOOLTIPS_ROLE = Qt.ItemDataRole.UserRole + 3
 
 
 class StatusDelegate(QStyledItemDelegate):
@@ -44,6 +47,92 @@ class StatusDelegate(QStyledItemDelegate):
             option = QStyleOptionViewItem(option)
             option.state &= ~QStyle.StateFlag.State_Selected
         super().paint(painter, option, index)
+
+
+class SequenceStatusDelegate(StatusDelegate):
+    """Show parameter and image issues as compact badges inside a single cell."""
+
+    def _badges(self, option, index):
+        return [
+            (image, status, "Obraz" if image else "Parametry")
+            for image, status in (index.data(ISSUES_ROLE) or ())
+        ]
+
+    def sizeHint(self, option, index):
+        badges = self._badges(option, index)
+        width = sum(self._badge_widths(option)) + 16
+        stacked = bool(badges) and self.parent().viewport().width() < width + 240
+        return QSize(0, 70 if stacked else 44)
+
+    def _badge_widths(self, option):
+        return tuple(
+            option.fontMetrics.horizontalAdvance(text) + 40 for text in ("Parametry", "Obraz")
+        )
+
+    def _layout(self, option, index):
+        badges = self._badges(option, index)
+        widths = self._badge_widths(option)
+        total = sum(widths) + 16
+        stacked = option.rect.width() < total + 240
+        name_rect = option.rect.adjusted(
+            0, 0, -total if not stacked else 0, -32 if stacked else 0,
+        )
+        x = option.rect.left() + 8 if stacked else option.rect.right() - total + 1
+        y = option.rect.bottom() - 31 if stacked else option.rect.center().y() - 14
+        positioned = []
+        for image, status, text in badges:
+            offset = widths[0] + 8 if image else 0
+            positioned.append((image, status, text, QRect(x + offset, y, widths[int(image)], 28)))
+        return name_rect, positioned
+
+    def helpEvent(self, event, view, option, index):
+        if event.type() != QEvent.Type.ToolTip:
+            return super().helpEvent(event, view, option, index)
+        _, badges = self._layout(option, index)
+        tooltips = index.data(BADGE_TOOLTIPS_ROLE) or ()
+        for (_, _, _, rect), tooltip in zip(badges, tooltips):
+            if rect.contains(event.pos()):
+                QToolTip.showText(event.globalPos(), tooltip, view.viewport(), rect)
+                return True
+        QToolTip.hideText()
+        event.accept()
+        return True
+
+    def paint(self, painter, option, index):
+        if not index.data(ISSUES_ROLE):
+            return super().paint(painter, option, index)
+        name_rect, badges = self._layout(option, index)
+        painter.save()
+        painter.fillRect(option.rect, index.data(Qt.ItemDataRole.BackgroundRole))
+        name_option = QStyleOptionViewItem(option)
+        name_option.rect = name_rect
+        super().paint(painter, name_option, index)
+        for image, status, text, rect in badges:
+            x, y = rect.x(), rect.y()
+            background, foreground = COLORS[status]
+            painter.setPen(QPen(QColor(foreground), 1))
+            painter.setBrush(QColor(background))
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 5, 5)
+            painter.save()
+            painter.translate(x + 8, y + 6)
+            painter.setPen(QPen(QColor(foreground), 1.5))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            if image:
+                painter.drawRect(0, 1, 16, 13)
+                painter.drawEllipse(10, 3, 3, 3)
+                painter.drawLine(1, 12, 6, 7)
+                painter.drawLine(6, 7, 10, 11)
+                painter.drawLine(10, 11, 13, 8)
+                painter.drawLine(13, 8, 16, 11)
+            else:
+                for line, knob in ((3, 5), (8, 11), (13, 7)):
+                    painter.drawLine(0, line, 16, line)
+                    painter.setBrush(QColor(background))
+                    painter.drawEllipse(knob - 2, line - 2, 4, 4)
+            painter.restore()
+            painter.setPen(QColor(foreground))
+            painter.drawText(rect.adjusted(30, 0, -6, 0), Qt.AlignmentFlag.AlignVCenter, text)
+        painter.restore()
 
 
 def table(headers):

@@ -2,16 +2,11 @@
 
 import json
 
-STATUS_SYMBOLS = {"GREEN": "●", "ORANGE": "▲", "RED": "■", "GRAY": "○"}
-STATUS_LABELS = {
+STATUS_TEXT = {
     "GREEN": "OK",
     "ORANGE": "Varování",
     "RED": "Kritická odchylka",
     "GRAY": "Nevyhodnoceno",
-}
-STATUS_TEXT = {
-    status: f"{STATUS_SYMBOLS[status]} {description}"
-    for status, description in STATUS_LABELS.items()
 }
 COLORS = {
     "GREEN": ("#ddf3e6", "#17643b"),
@@ -145,7 +140,44 @@ PARAMETER_NAMES = {
     "T2Axial": "Přítomnost axiální T2W",
     "DWISet": "Sada DWI",
     "ResolvePresence": "Přítomnost RESOLVE",
+    "low_snr": "Nízký poměr signál/šum",
+    "motion_ghosting": "Pohybové artefakty",
+    "slab_discontinuity": "Nespojitost řezů",
 }
+
+
+def sequence_layer(row, *, image: bool, stale: bool) -> tuple[str, str, str]:
+    evaluations = [
+        item for item in row.evaluations if not image or item.get("image_required", True)
+    ]
+    if image and row.evaluations and not evaluations:
+        return "GRAY", "Nevyžadováno", "Obrazová kontrola není v protokolu požadována."
+    field = "image_status" if image else "metadata_status"
+    statuses = {item.get(field, "GRAY") for item in evaluations}
+    status = next(
+        (value for value in ("RED", "GRAY", "ORANGE", "GREEN") if value in statuses),
+        "GRAY" if image else row.status,
+    )
+    if stale and status != "RED":
+        status = "GRAY"
+    checks = [
+        check for item in evaluations for check in item.get("checks", ())
+        if check.get("rule_id", "").startswith("image:") == image
+        and check["status"] == status and status in {"RED", "ORANGE"}
+    ]
+    names = dict.fromkeys(
+        PARAMETER_NAMES.get(check.get("field"), check.get("field") or "Geometrie řezů")
+        for check in checks
+    )
+    text = STATUS_TEXT[status]
+    if names:
+        text += "\n" + ", ".join(names)
+    tooltip = "\n\n".join(dict.fromkeys(critical_description(check) for check in checks))
+    if not tooltip:
+        tooltip = reason_text(row.reason) if not evaluations else STATUS_TEXT[status]
+    if stale:
+        tooltip = "Čeká na aktualizaci hodnocení.\n" + tooltip
+    return status, text, tooltip
 GEOMETRY_NAMES = {
     "incomplete_geometry": "chybí údaje o poloze nebo rozměrech řezů",
     "uncertain_dimension": "některé údaje potřebné k seskupení řezů jsou nejasné",

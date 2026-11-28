@@ -13,7 +13,7 @@ import pytest
 from mr_quality_monitor.config import ReceiverConfig
 from mr_quality_monitor.dicom.sender import SendResult
 from mr_quality_monitor.dicom.storage import Storage
-from mr_quality_monitor.gui.presentation import COLORS, STATUS_SYMBOLS, STATUS_TEXT
+from mr_quality_monitor.gui.presentation import COLORS, STATUS_TEXT
 from mr_quality_monitor.gui.view_data import MonitorReader
 from mr_quality_monitor.protocols.manager import load_protocol_candidates
 from mr_quality_monitor.services.analysis_worker import open_worker
@@ -89,6 +89,7 @@ def test_live_checklist_and_completion(app, tmp_path, image, protocol_data, monk
         )
 
     image.SeriesDescription = "localizer"
+    image.BodyPartExamined = "PROSTATA"
     assert receive(image) == "stored"
     storage.recover(reset_study=True)
     assert not list((tmp_path / "objects").glob("*.dcm"))
@@ -117,6 +118,11 @@ def test_live_checklist_and_completion(app, tmp_path, image, protocol_data, monk
             assert worker.run_once(Event(), defer_new_study=True) == 0
             refresh(lambda: window.snapshot.completion is not None)
             assert [row.status for row in window.snapshot.rows] == ["GRAY", "GRAY"]
+            assert window.completion_label.text() == (
+                "Vyšetření: Údaje o vyšetření zatím nejsou dostupné"
+            )
+            assert window.completion_label.isVisible()
+            assert not window.study_panel.isVisible()
             assert not window.snapshot.history
 
             recognized.SeriesDescription = "t2"
@@ -128,6 +134,10 @@ def test_live_checklist_and_completion(app, tmp_path, image, protocol_data, monk
             assert receive(recognized) == "stored"
             assert worker.run_once(Event()) == 0
             refresh(lambda: window.snapshot.rows[0].status == "GREEN")
+            assert window.snapshot.examination_name == "PROSTATA – TEST protocol"
+            assert window.completion_label.text() == (
+                "Vyšetření: PROSTATA – TEST protocol"
+            )
             assert "Požadavky splněny" in window.study_findings.toPlainText()
             monkeypatch.setattr(
                 QtWidgets.QMessageBox,
@@ -143,7 +153,7 @@ def test_live_checklist_and_completion(app, tmp_path, image, protocol_data, monk
             recognized.RepetitionTime = 3300
             assert receive(recognized) == "stored"
             refresh(lambda: window.snapshot.stale)
-            assert "probíhá" in window.completion_label.text()
+            assert window.completion_label.text().startswith("Vyšetření: ")
             assert worker.run_once(Event()) == 0
             refresh(lambda: window.snapshot.rows[0].status == "ORANGE")
 
@@ -207,16 +217,16 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         wait_for(app, lambda: window.snapshot is not None)
         assert window.sequence_table.rowCount() == 4
         assert window.sequence_table.columnCount() == 1
-        assert [entry.text() for entry in window.legend.entries] == list(STATUS_TEXT.values())
-        assert window.legend.columns == 4
-        window.resize(window.minimumWidth(), window.height())
-        wait_for(app, lambda: window.legend.columns == 2)
+        assert [
+            window.sequence_table.horizontalHeaderItem(index).text() for index in range(1)
+        ] == ["Sekvence"]
         window.resize(660, 540)
-        wait_for(app, lambda: window.legend.columns == 4)
+        app.processEvents()
         for index, status in enumerate(STATUS_TEXT):
             item = window.sequence_table.item(index, 0)
-            assert item.text().startswith(STATUS_SYMBOLS[status])
-            assert item.background().color() == QtGui.QColor(COLORS[status][0])
+            assert item.text().startswith(window.snapshot.rows[index].name)
+            expected_background = COLORS["GRAY"][0] if status == "GRAY" else "#ffffff"
+            assert item.background().color() == QtGui.QColor(expected_background)
         assert not window.detail_dialog.isVisible()
         assert not window.study_panel.isVisible()
         window.study_details_button.click()
@@ -240,8 +250,8 @@ def test_window_displays_colors_details_and_lazy_metadata(app, gui_demo):
         image = window.sequence_table.viewport().grab().toImage()
         scale = image.devicePixelRatio()
         assert image.pixelColor(
-            int((rect.right() - 8) * scale), int(rect.center().y() * scale)
-        ) == QtGui.QColor(COLORS["RED"][0])
+            int((rect.right() - 8) * scale), int((rect.top() + 3) * scale)
+        ) == QtGui.QColor("#ffffff")
         assert "kritická" in window.detail.heading.text()
         assert "TR: 6000 ms" in window.detail.summary.text()
         assert window.detail.checks.rowCount() == 3
@@ -301,6 +311,156 @@ def test_slow_read_keeps_event_loop_responsive_and_close_nonblocking(app, gui_de
     finally:
         release.set()
         timer.stop()
+        close_window(app, window)
+
+
+def test_basic_view_shows_issue_icons_inside_sequence_column(app, gui_demo, monkeypatch):
+    snapshot = MonitorReader(gui_demo.root).read()
+    parameter_row = snapshot.rows[2]
+    parameter_row = replace(
+        parameter_row,
+        plan_role="Povinná",
+        evaluations=tuple(
+            {**item, "image_required": True, "image_status": "GREEN"}
+            for item in parameter_row.evaluations
+        ),
+    )
+    artifact_row = snapshot.rows[0]
+    artifact_row = replace(
+        artifact_row,
+        plan_role="Skupinový požadavek",
+        status="RED",
+        evaluations=tuple(
+            {**item, "image_required": True, "image_status": "RED",
+             "checks": [
+                 *item["checks"],
+                 {"rule_id": "image:motion_ghosting", "field": "motion_ghosting",
+                  "status": "RED", "actual": 0.8, "expected": {},
+                  "reason": "motion_ghosting_detected", "paths": []},
+             ]}
+            for item in artifact_row.evaluations
+        ),
+    )
+    warning_row = replace(
+        snapshot.rows[1],
+        plan_role="Nepovinná",
+        evaluations=tuple(
+            {**item, "image_required": True, "image_status": "ORANGE"}
+            for item in snapshot.rows[1].evaluations
+        ),
+    )
+    clean_row = replace(snapshot.rows[0], key="seq:clean")
+    reader = SimpleNamespace(snapshot=replace(
+        snapshot, rows=(parameter_row, artifact_row, warning_row, clean_row, snapshot.rows[3]),
+    ))
+    reader.read = lambda *_: reader.snapshot
+    window = MainWindow(gui_demo.config, reader=reader, refresh_interval_ms=60000)
+    window.show()
+    try:
+        wait_for(app, lambda: window.snapshot is not None)
+        issues_role = importlib.import_module("mr_quality_monitor.gui.sequence_detail").ISSUES_ROLE
+
+        def issues(index):
+            cell = window.sequence_table.item(index, 0)
+            return [tuple(issue) for issue in cell.data(issues_role)]
+
+        assert window.sequence_table.columnCount() == 1
+        assert window.sequence_table.item(0, 0).text() == parameter_row.name
+        assert window.sequence_table.item(1, 0).text() == artifact_row.name
+        assert window.sequence_table.item(2, 0).text() == f"{warning_row.name} (nepovinná)"
+        assert issues(0) == [(False, "RED")]
+        assert issues(1) == [(False, "GREEN"), (True, "RED")]
+        assert issues(2) == [(False, "ORANGE"), (True, "ORANGE")]
+        assert issues(3) == [(False, "GREEN")]
+        assert issues(4) == [(False, "GREEN")]
+
+        def verify_badge_alignment():
+            slots = {False: set(), True: set()}
+            table = window.sequence_table
+            for row_index in range(table.rowCount()):
+                index = table.model().index(row_index, 0)
+                option = QtWidgets.QStyleOptionViewItem()
+                option.initFrom(table)
+                option.rect = table.visualRect(index)
+                _, badges = table.itemDelegate()._layout(option, index)
+                for image, _, _, rect in badges:
+                    slots[image].add((rect.left(), rect.width()))
+            assert all(len(positions) == 1 for positions in slots.values())
+            assert next(iter(slots[False]))[0] < next(iter(slots[True]))[0]
+
+        verify_badge_alignment()
+        assert all(
+            window.sequence_table.item(index, 0).background().color() == QtGui.QColor("#ffffff")
+            for index in range(4)
+        )
+        badge_index = window.sequence_table.model().index(1, 0)
+        badge_option = QtWidgets.QStyleOptionViewItem()
+        badge_option.initFrom(window.sequence_table)
+        badge_option.rect = window.sequence_table.visualRect(badge_index)
+        _, painted_badges = window.sequence_table.itemDelegate()._layout(badge_option, badge_index)
+        rendered = window.sequence_table.viewport().grab().toImage()
+        scale = rendered.devicePixelRatio()
+        for _, status, _, rect in painted_badges:
+            assert rendered.pixelColor(
+                int(rect.center().x() * scale), int((rect.top() + 3) * scale),
+            ) == QtGui.QColor(COLORS[status][0])
+        module = importlib.import_module("mr_quality_monitor.gui.sequence_detail")
+        assert "Čas opakování" in window.sequence_table.item(0, 0).data(
+            module.BADGE_TOOLTIPS_ROLE
+        )[0]
+        assert "Pohybové artefakty" in window.sequence_table.item(1, 0).data(
+            module.BADGE_TOOLTIPS_ROLE
+        )[1]
+        assert window.sequence_table.item(1, 0).toolTip() == ""
+        hovered = []
+        monkeypatch.setattr(QtWidgets.QToolTip, "showText", lambda *args: hovered.append(args[1]))
+        monkeypatch.setattr(QtWidgets.QToolTip, "hideText", lambda: hovered.append(None))
+
+        def verify_hover_regions(row_index):
+            table = window.sequence_table
+            index = table.model().index(row_index, 0)
+            option = QtWidgets.QStyleOptionViewItem()
+            option.initFrom(table)
+            option.rect = table.visualRect(index)
+            name_rect, badges = table.itemDelegate()._layout(option, index)
+            expected = index.data(module.BADGE_TOOLTIPS_ROLE)
+            for point, text in [
+                (name_rect.topLeft() + QtCore.QPoint(20, 5), None),
+                *((badge[3].center(), text) for badge, text in zip(badges, expected)),
+            ]:
+                hovered.clear()
+                event = QtGui.QHelpEvent(
+                    QtCore.QEvent.Type.ToolTip, point, table.viewport().mapToGlobal(point)
+                )
+                app.sendEvent(table.viewport(), event)
+                assert hovered == [text]
+
+        verify_hover_regions(1)
+        window.resize(window.minimumWidth(), window.height())
+        app.processEvents()
+        assert window.sequence_table.rowHeight(2) >= 70
+        verify_badge_alignment()
+        verify_hover_regions(2)
+        window.resize(840, 600)
+        app.processEvents()
+        assert window.sequence_table.rowHeight(2) < 70
+        cell = window.sequence_table.item(1, 0)
+        QtTest.QTest.mouseClick(
+            window.sequence_table.viewport(), QtCore.Qt.MouseButton.LeftButton,
+            pos=window.sequence_table.visualItemRect(cell).center(),
+        )
+        app.processEvents()
+        assert window.detail_dialog.isVisible()
+        assert window.row_key == artifact_row.key
+        reader.snapshot = replace(reader.snapshot, stale=True)
+        window.refresh()
+        wait_for(app, lambda: window.display_stale)
+        assert issues(0) == [(False, "RED")]
+        assert issues(1) == [(True, "RED")]
+        assert issues(2) == []
+        assert issues(3) == []
+        assert issues(4) == []
+    finally:
         close_window(app, window)
 
 
@@ -532,8 +692,8 @@ def test_read_error_masks_success_and_does_not_switch_study(app, gui_demo):
         assert window.display_stale
         for index, status in ((0, "GRAY"), (2, "RED")):
             item = window.sequence_table.item(index, 0)
-            assert item.text().startswith(STATUS_SYMBOLS[status])
-            assert item.background().color() == QtGui.QColor(COLORS[status][0])
+            assert item.text().startswith(snapshot.rows[index].name)
+            assert item.background().color() == QtGui.QColor(COLORS["GRAY"][0])
         assert window.study_uid == snapshot.study_uid
         assert "sensitive" not in window.message_label.text()
     finally:

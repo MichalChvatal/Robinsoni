@@ -49,6 +49,7 @@ class MonitorSnapshot:
     can_finalize: bool = False
     study_rows: tuple[MonitorRow, ...] = ()
     completion: ExaminationCompletion | None = None
+    examination_name: str = ""
 
 
 def known(record: dict, name: str):
@@ -246,6 +247,14 @@ class MonitorReader:
         )
         history = self._history(db, branch["id"]) if branch else ()
         records = tuple(record for members in group_records.values() for record in members)
+        examination_fields = [
+            next(
+                (str(known(record, field)).strip() for record in records if known(record, field)),
+                "",
+            )
+            for field in ("BodyPartExamined", "StudyDescription")
+        ]
+        examination_name = " – ".join(value for value in examination_fields if value)
         date = next(
             (known(record, "StudyDate") for record in records if known(record, "StudyDate")), "—"
         )
@@ -309,6 +318,7 @@ class MonitorReader:
             ),
             study_rows,
             completion,
+            examination_name,
         )
 
     def _run_data(self, db, run):
