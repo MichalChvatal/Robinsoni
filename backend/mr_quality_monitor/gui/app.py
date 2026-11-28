@@ -9,7 +9,7 @@ from .view_data import MonitorReader
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="MR Quality Monitor desktop viewer")
+    parser = argparse.ArgumentParser(description="MR.BUDDY desktop viewer")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--protocol", type=Path)
     args = parser.parse_args()
@@ -31,7 +31,7 @@ def main() -> int:
         print('GUI vyžaduje instalaci volitelných závislostí: pip install -e ".[gui]"')
         return 2
     app = QApplication([])
-    app.setApplicationName("MR Quality Monitor")
+    app.setApplicationName("MR.BUDDY")
     reader = MonitorReader(
         config.storage_root,
         intake_protocol=protocol,

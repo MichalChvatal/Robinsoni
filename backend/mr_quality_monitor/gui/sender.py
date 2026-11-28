@@ -52,7 +52,7 @@ class SenderWindow(QWidget):
         if config.host.is_unspecified:
             self.host = "127.0.0.1" if config.host.version == 4 else "::1"
         self.transfer = None
-        self.setWindowTitle("Odeslat DICOM")
+        self.setWindowTitle("MR.BUDDY — Odeslat DICOM")
         self.setMinimumWidth(465)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(f"Cíl  {self.host}:{config.port}  ·  {config.ae_title}"))
@@ -137,6 +137,7 @@ def main() -> int:
     config = load_config(args.config)
     configure_logging(config.storage_root, filename="sender.log", console=False)
     app = QApplication([])
+    app.setApplicationName("MR.BUDDY")
     ensure_font()
     window = SenderWindow(config)
     window.show()

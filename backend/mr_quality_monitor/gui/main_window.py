@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         self.row_key = None
         self.display_stale = True
         self.read_failed = False
-        self.setWindowTitle("MR Quality Monitor")
+        self.setWindowTitle("MR.BUDDY")
         self.resize(840, 600)
         self.setMinimumSize(400, 330)
         self._build()
@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         outer.setSpacing(12)
         self.setCentralWidget(central)
         heading = QHBoxLayout()
-        heading.addWidget(label("MR Quality Monitor", "title"))
+        heading.addWidget(label("MR.BUDDY", "title"))
         heading.addStretch()
         if not self.config.single_active_study:
             heading.addWidget(label("DEMO · metadata", "demoBadge"))
