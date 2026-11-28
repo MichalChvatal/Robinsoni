@@ -13,6 +13,7 @@ network_timeout_seconds: 30
 b_value_tag_order:
   - "0019,100C"
   - "0021,1105"
+image_quality_path: image_quality.yaml
 pacs:
   enabled: false
   host: 127.0.0.1

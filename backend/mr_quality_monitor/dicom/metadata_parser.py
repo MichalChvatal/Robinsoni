@@ -139,6 +139,9 @@ DERIVED_FIELDS = {
     "PhaseResolution",
     "FrequencyResolution",
 }
+# Keep FOV precision at 0.01 mm so insignificant sub-hundredth-mm differences
+# do not fail protocol limits expressed at whole-mm precision.
+FOV_DECIMAL_PLACES = 2
 
 
 def prostate_metadata(dataset, fields, profile, vendor):
@@ -167,7 +170,10 @@ def prostate_metadata(dataset, fields, profile, vendor):
         "FieldOfView",
         ("Rows", "Columns", "PixelSpacing"),
         lambda rows, cols, spacing: (
-            tuple(round(size * step, 2) for size, step in zip((rows, cols), spacing, strict=True))
+            tuple(
+                round(size * step, FOV_DECIMAL_PLACES)
+                for size, step in zip((rows, cols), spacing, strict=True)
+            )
             if min(rows, cols, *spacing) > 0
             else None
         ),
@@ -286,8 +292,8 @@ def _populate_derived_fields(fields: dict[str, MetadataValue]) -> None:
         and len(spacing) == 2
         and all(value > 0 for value in spacing)
     ):
-        fov_row = round(rows * spacing[0], 4)
-        fov_col = round(cols * spacing[1], 4)
+        fov_row = round(rows * spacing[0], FOV_DECIMAL_PLACES)
+        fov_col = round(cols * spacing[1], FOV_DECIMAL_PLACES)
         fields["FieldOfView"] = normalize(
             FIELDS["FieldOfView"],
             (

@@ -1,0 +1,27 @@
+# Thresholds for the deterministic image-quality detectors.
+# These values preserve the application's existing behavior; they are not
+# independently validated clinical cutoffs.
+schema_version: 1
+
+low_snr:
+  default:
+    min_snr_ok: 8.0
+    min_snr_warn: 5.0
+  roles:
+    t2w_sag: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    t2w_cor: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    t2w_tra: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    dwi_low_b: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    dwi_int_b: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    dwi_adc: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    dwi_high_b: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    dwi_resolve: {min_snr_ok: 5.0, min_snr_warn: 3.0}
+    localizer: {min_snr_ok: 3.0, min_snr_warn: 1.5}
+
+motion_ghosting:
+  max_ghost_ok: 0.25
+  max_ghost_crit: 0.42
+
+slab_discontinuity:
+  max_jump_ok: 0.40
+  max_jump_crit: 0.65

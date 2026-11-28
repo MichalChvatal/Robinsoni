@@ -37,6 +37,8 @@ def open_worker(
     root: Path,
     protocol: ProtocolSnapshot | tuple[ProtocolSnapshot, ...],
     config: ReceiverConfig | None = None,
+    *,
+    image_quality_config_path: Path | None = None,
 ):
     lock = ProcessLock(root, "analysis")
     lock.acquire()
@@ -44,11 +46,15 @@ def open_worker(
         storage = Storage(root)
         try:
             b_value_tags = config.b_value_tag_order if config else ()
+            quality_path = image_quality_config_path or (
+                config.image_quality_path if config else None
+            )
             yield AnalysisWorker(
                 storage,
                 protocol,
                 b_value_tags=b_value_tags,
                 single_active_study=config.single_active_study if config else False,
+                image_quality_config_path=quality_path,
             )
         finally:
             storage.close()
@@ -64,6 +70,7 @@ class AnalysisWorker:
         *,
         b_value_tags: tuple[str, ...] = (),
         single_active_study: bool = False,
+        image_quality_config_path: Path | None = None,
     ):
         self.storage = storage
         self.sessions = storage.sessions
@@ -77,6 +84,7 @@ class AnalysisWorker:
         ) else None
         self.b_value_tags = b_value_tags
         self.single_active_study = single_active_study
+        self.image_quality_config_path = image_quality_config_path
 
     def retry_failed(self) -> None:
         """Requeue rejected objects after their local storage has been repaired."""
@@ -181,7 +189,7 @@ class AnalysisWorker:
 
         sop_to_id = {instance.sop_uid: instance.id for instance, _ in inputs}
         image_findings: dict[str, tuple[ArtifactFinding, ...]] = {}
-        registry = default_registry()
+        registry = default_registry(self.image_quality_config_path)
         definitions = {
             definition.sequence_id: definition for definition in snapshot.protocol.sequences
         }

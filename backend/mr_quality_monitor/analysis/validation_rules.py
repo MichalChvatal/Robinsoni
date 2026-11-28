@@ -56,6 +56,13 @@ def scalar_match(value, constraint) -> Match:
 def matches(value, predicate: Predicate) -> Match:
     if predicate.components == "scalar":
         return scalar_match(value, predicate.constraint)
+    if predicate.field == "FieldOfView":
+        # FOV is a pair (A, B): enforce an independent comparison for each
+        # axis and require both axes to satisfy the configured bounds.
+        if not isinstance(value, tuple) or len(value) != 2:
+            return "fail"
+        results = [scalar_match(component, predicate.constraint) for component in value]
+        return "fail" if "fail" in results else "pass"
     if not isinstance(value, tuple) or not value:
         return "fail"
     results = [scalar_match(component, predicate.constraint) for component in value]

@@ -127,6 +127,17 @@ class ParameterRule(Predicate):
     on_missing: Literal["unknown", "critical", "warning"] = "unknown"
     action: str = "Review the acquisition"
 
+    @model_validator(mode="after")
+    def valid_field_of_view_rule(self):
+        if self.field == "FieldOfView":
+            if self.components != "all":
+                raise ValueError("FieldOfView must check both dimensions independently")
+            if not isinstance(self.constraint, Range):
+                raise ValueError("FieldOfView must use explicit minimum and maximum bounds")
+            if self.constraint.warning_minimum is not None:
+                raise ValueError("FieldOfView must be compared only with its required bounds")
+        return self
+
 
 class CompletionRule(FrozenModel):
     mode: Literal["explicit", "expected_count", "geometric_stack"] = "explicit"

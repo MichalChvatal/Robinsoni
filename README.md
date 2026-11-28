@@ -37,3 +37,5 @@ podporovaných MR snímků kontroly SNR, ghostingu a návaznosti řezů. Aktivn�
 verzi a režim protokolu najdete v `runtime/logs/analysis.log`. Po dokončení
 příjmu lze vyšetření ručně uzavřít v jeho podrobnostech. Pokrytí prostaty
 a PI-QUAL zatím vyžadují samostatné posouzení.
+Prahy detektorů obrazové kvality jsou odděleně v `config/image_quality.yaml`;
+umístění souboru lze změnit přes `image_quality_path` v `config/app_config.yaml`.

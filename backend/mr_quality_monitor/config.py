@@ -49,6 +49,7 @@ class ReceiverConfig(BaseModel):
     maximum_associations: int = Field(default=4, ge=1, le=32)
     network_timeout_seconds: int = Field(default=30, ge=1, le=300)
     b_value_tag_order: tuple[str, ...] = ("0019,100C", "0021,1105")
+    image_quality_path: Path = Path("image_quality.yaml")
     pacs: PacsConfig = PacsConfig()
     protocol_path: Path | None = None
 
@@ -90,4 +91,8 @@ def load_config(path: Path) -> ReceiverConfig:
     updates["storage_root"] = root.resolve()
     if config.protocol_path is not None and not config.protocol_path.is_absolute():
         updates["protocol_path"] = (path.parent / config.protocol_path).resolve()
+    image_quality_path = config.image_quality_path
+    if not image_quality_path.is_absolute():
+        image_quality_path = path.parent / image_quality_path
+    updates["image_quality_path"] = image_quality_path.resolve()
     return config.model_copy(update=updates)

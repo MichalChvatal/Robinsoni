@@ -247,6 +247,28 @@ def critical_description(check: dict) -> str:
     name = PARAMETER_NAMES.get(field, field or "Kontrolovaný údaj")
     reason = check.get("reason")
     actual = check.get("actual")
+    if field == "FieldOfView" and reason == "outside_requirement":
+        constraint = (check.get("expected") or {}).get("constraint", {})
+        if isinstance(actual, (tuple, list)) and len(actual) == 2:
+            low = plain_value(constraint.get("minimum"))
+            high = plain_value(constraint.get("maximum"))
+            unit = check.get("unit") or "mm"
+            minimum, maximum = constraint.get("minimum"), constraint.get("maximum")
+            outside = [
+                axis
+                for axis, value in zip(("A", "B"), actual, strict=True)
+                if isinstance(value, (int, float))
+                and isinstance(minimum, (int, float))
+                and isinstance(maximum, (int, float))
+                and not minimum <= value <= maximum
+            ]
+            outside_text = ", ".join(outside) if outside else "žádný"
+            return (
+                f"Rozměry FOV A={plain_value(actual[0])} {unit} a "
+                f"B={plain_value(actual[1])} {unit}; každý se samostatně "
+                f"porovnává s rozsahem {low}–{high} {unit}. "
+                f"Mimo rozsah: {outside_text}."
+            )
     if field == "PrivateDiffusionBValue" and reason == "outside_requirement":
         bounds = (check.get("expected") or {}).get("constraint", {})
         if isinstance(actual, (int, float)):

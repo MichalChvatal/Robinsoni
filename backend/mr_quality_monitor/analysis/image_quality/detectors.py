@@ -2,8 +2,15 @@
 
 import statistics
 from dataclasses import replace
+from pathlib import Path
 
 from .base import ArtifactDetector, ArtifactFinding, DetectorRegistry, SlicePixels
+from .quality_config import (
+    GhostingConfig,
+    SNRConfig,
+    SlabConfig,
+    load_image_quality_config,
+)
 
 
 def _subsample_grid(sl: SlicePixels, target_dim: int = 96) -> tuple[list[list[float]], int, int]:
@@ -45,22 +52,25 @@ class LowSNRDetector(ArtifactDetector):
     detector_id = "low_snr"
     artifact_type = "low_snr"
 
-    # Per-role (ok, warn) thresholds tuned for clinical Siemens compressed MR.
-    _ROLE_THRESHOLDS: dict[str, tuple[float, float]] = {
-        "t2w_sag": (4.0, 2.0),
-        "t2w_cor": (4.0, 2.0),
-        "t2w_tra": (4.0, 2.0),
-        "dwi_low_b": (5.0, 3.0),
-        "dwi_int_b": (5.0, 3.0),
-        "dwi_adc": (4.0, 2.5),
-        "dwi_high_b": (4.0, 2.5),
-        "dwi_resolve": (5.0, 3.0),
-        "localizer": (3.0, 1.5),
-    }
-
-    def __init__(self, *, min_snr_ok: float = 8.0, min_snr_warn: float = 5.0):
-        self.min_snr_ok = min_snr_ok
-        self.min_snr_warn = min_snr_warn
+    def __init__(
+        self,
+        *,
+        min_snr_ok: float | None = None,
+        min_snr_warn: float | None = None,
+        role_thresholds: dict[str, tuple[float, float]] | None = None,
+        thresholds: SNRConfig | None = None,
+    ):
+        settings = thresholds or load_image_quality_config().low_snr
+        self.min_snr_ok = (
+            settings.default.min_snr_ok if min_snr_ok is None else min_snr_ok
+        )
+        self.min_snr_warn = (
+            settings.default.min_snr_warn if min_snr_warn is None else min_snr_warn
+        )
+        self._role_thresholds = role_thresholds or {
+            role: (limits.min_snr_ok, limits.min_snr_warn)
+            for role, limits in settings.roles.items()
+        }
 
     def detect(  # noqa: D102
         self, slices: tuple[SlicePixels, ...], *, role: str | None = None
@@ -76,8 +86,8 @@ class LowSNRDetector(ArtifactDetector):
             )
         # Apply per-role threshold if available, else fall back to global defaults.
         role_key = (role or "").lower()
-        if role_key in self._ROLE_THRESHOLDS:
-            ok_lim, warn_lim = self._ROLE_THRESHOLDS[role_key]
+        if role_key in self._role_thresholds:
+            ok_lim, warn_lim = self._role_thresholds[role_key]
         else:
             ok_lim, warn_lim = self.min_snr_ok, self.min_snr_warn
 
@@ -162,9 +172,20 @@ class MotionGhostingDetector(ArtifactDetector):
     detector_id = "motion_ghosting"
     artifact_type = "motion_ghosting"
 
-    def __init__(self, *, max_ghost_ok: float = 0.25, max_ghost_crit: float = 0.42):
-        self.max_ghost_ok = max_ghost_ok
-        self.max_ghost_crit = max_ghost_crit
+    def __init__(
+        self,
+        *,
+        max_ghost_ok: float | None = None,
+        max_ghost_crit: float | None = None,
+        thresholds: GhostingConfig | None = None,
+    ):
+        settings = thresholds or load_image_quality_config().motion_ghosting
+        self.max_ghost_ok = (
+            settings.max_ghost_ok if max_ghost_ok is None else max_ghost_ok
+        )
+        self.max_ghost_crit = (
+            settings.max_ghost_crit if max_ghost_crit is None else max_ghost_crit
+        )
 
     def detect(  # noqa: D102
         self, slices: tuple[SlicePixels, ...], *, role: str | None = None
@@ -268,9 +289,16 @@ class SlabDiscontinuityDetector(ArtifactDetector):
     detector_id = "slab_discontinuity"
     artifact_type = "slab_discontinuity"
 
-    def __init__(self, *, max_jump_ok: float = 0.40, max_jump_crit: float = 0.65):
-        self.max_jump_ok = max_jump_ok
-        self.max_jump_crit = max_jump_crit
+    def __init__(
+        self,
+        *,
+        max_jump_ok: float | None = None,
+        max_jump_crit: float | None = None,
+        thresholds: SlabConfig | None = None,
+    ):
+        settings = thresholds or load_image_quality_config().slab_discontinuity
+        self.max_jump_ok = settings.max_jump_ok if max_jump_ok is None else max_jump_ok
+        self.max_jump_crit = settings.max_jump_crit if max_jump_crit is None else max_jump_crit
 
     def detect(  # noqa: D102
         self, slices: tuple[SlicePixels, ...], *, role: str | None = None
@@ -359,11 +387,12 @@ class SlabDiscontinuityDetector(ArtifactDetector):
         )
 
 
-def default_registry() -> DetectorRegistry:
+def default_registry(config_path: Path | None = None) -> DetectorRegistry:
+    settings = load_image_quality_config(config_path)
     return DetectorRegistry(
         (
-            LowSNRDetector(),
-            MotionGhostingDetector(),
-            SlabDiscontinuityDetector(),
+            LowSNRDetector(thresholds=settings.low_snr),
+            MotionGhostingDetector(thresholds=settings.motion_ghosting),
+            SlabDiscontinuityDetector(thresholds=settings.slab_discontinuity),
         )
     )
