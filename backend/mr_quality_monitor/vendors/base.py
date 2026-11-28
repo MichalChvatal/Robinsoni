@@ -94,7 +94,7 @@ class VendorAdapter:
         return result
 
 
-def adapter_for(manufacturer: str) -> VendorAdapter:
+def adapter_for(manufacturer: str, *, b_value_tags: tuple[str, ...] = ()) -> VendorAdapter:
     # Exact normalized aliases avoid classifying arbitrary substrings as a vendor.
     from .canon import CanonAdapter
     from .ge import GEAdapter
@@ -112,4 +112,7 @@ def adapter_for(manufacturer: str) -> VendorAdapter:
         "CANON MEDICAL SYSTEMS": CanonAdapter,
         "CANON MEDICAL SYSTEMS CORPORATION": CanonAdapter,
     }
-    return aliases.get(manufacturer.strip().upper(), VendorAdapter)()
+    cls = aliases.get(manufacturer.strip().upper(), VendorAdapter)
+    if cls is SiemensAdapter and b_value_tags:
+        return cls(b_value_tags=b_value_tags)
+    return cls()

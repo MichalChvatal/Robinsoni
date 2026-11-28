@@ -44,6 +44,16 @@ REASONS = {
     "metadata_not_processed": "Metadata čekají na zpracování",
     "demo_metadata_requirements_passed": "Metadatové požadavky DEMO splněny",
     "completion_identity_uncertain": "Počet nelze určit kvůli nejasné identitě snímků",
+    # Study-level rule reasons (clinical mode)
+    "group_min_valid_not_met": "Není splněn minimální počet platných akvizic",
+    "fallback_sequence_used": "Použita záložní sekvence (primární nedostupná)",
+    "geometry_alignment_mismatch": "Nesouhlasí geometrické zarovnání sekvencí",
+    "prostate_coverage_incomplete": "Pokrytí prostaty je neúplné",
+    "clinical_requirements_passed": "Klinické požadavky splněny",
+    "image_not_required": "Obrazová kontrola pro tuto sekvenci není definována",
+    "study_rule_passed": "Pravidlo celého vyšetření splněno",
+    "study_rule_failed": "Pravidlo celého vyšetření nesplněno",
+    "missing_slice_positions": "Chybí informace o poloze řezů pro geometrické ověření",
 }
 
 

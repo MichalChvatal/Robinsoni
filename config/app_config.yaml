@@ -8,3 +8,14 @@ storage_root: ../runtime
 minimum_free_bytes: 104857600
 maximum_associations: 4
 network_timeout_seconds: 30
+b_value_tag_order:
+  - "0019,100C"
+  - "0021,1105"
+pacs:
+  enabled: false
+  host: 127.0.0.1
+  port: 11113
+  called_aet: PACS_SCP
+  calling_aet: MR_BUDDY
+  auto_forward_clean: true
+  require_manual_approval_on_issues: true

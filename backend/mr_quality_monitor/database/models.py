@@ -216,3 +216,47 @@ class HistoryEvent(Base):
     actor: Mapped[str]
     reference_id: Mapped[str]
     created_at: Mapped[str] = mapped_column(default=utc_now)
+
+
+class PacsExport(Base):
+    """Tracks series queued/approved/sent to external PACS."""
+
+    __tablename__ = "pacs_exports"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    study_uid: Mapped[str] = mapped_column(ForeignKey("studies.study_uid"), index=True)
+    series_uid: Mapped[str] = mapped_column(String(64))
+    group_key: Mapped[str] = mapped_column(String(64))
+    # queued | awaiting_approval | approved | sent | failed
+    status: Mapped[str]
+    created_at: Mapped[str] = mapped_column(default=utc_now)
+    approved_at: Mapped[str | None]
+    sent_at: Mapped[str | None]
+    error_code: Mapped[str | None]
+
+
+class StudyAnalytics(Base):
+    """Per-study analytics snapshot (operator, weight, BMI)."""
+
+    __tablename__ = "study_analytics"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    study_uid: Mapped[str] = mapped_column(ForeignKey("studies.study_uid"), index=True, unique=True)
+    operator_name: Mapped[str | None]
+    patient_age_years: Mapped[int | None]
+    patient_weight_kg: Mapped[float | None]
+    patient_bmi: Mapped[float | None]
+    patient_size_m: Mapped[float | None]
+    recorded_at: Mapped[str] = mapped_column(default=utc_now)
+
+
+class ArtifactFindingRow(Base):
+    """Persisted result of a single image-quality detector run."""
+
+    __tablename__ = "artifact_findings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    result_id: Mapped[str] = mapped_column(ForeignKey("validation_results.id"), index=True)
+    detector_id: Mapped[str]
+    artifact_type: Mapped[str]
+    status: Mapped[str]
+    score: Mapped[float | None]
+    threshold_json: Mapped[str | None] = mapped_column(Text)
+    affected_slices_json: Mapped[str | None] = mapped_column(Text)

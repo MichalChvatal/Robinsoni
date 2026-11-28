@@ -12,7 +12,7 @@ from sqlalchemy.engine import Engine
 
 from .models import Base
 
-HEAD = "0002_history"
+HEAD = "0003_pacs_analytics"
 LEGACY_TABLES = {
     "schema_version",
     "intake_records",
@@ -101,7 +101,10 @@ def migrate(engine: Engine, path: Path) -> None:
                     if revisions == [("0001_intake",)] and versions == [(1, 1)]:
                         backup_database(path)
                         command.upgrade(config, HEAD)
-                    elif revisions != [(HEAD,)] or versions != [(1, 2)]:
+                    elif revisions == [("0002_history",)] and versions == [(1, 2)]:
+                        backup_database(path)
+                        command.upgrade(config, HEAD)
+                    elif revisions != [(HEAD,)] or versions not in ([(1, 2)], [(1, 3)]):
                         raise RuntimeError("Unsupported database schema revision")
             connection.commit()
         except Exception:

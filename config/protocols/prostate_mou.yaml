@@ -1,0 +1,358 @@
+# Clinical prostate MRI protocol based on MOU requirements (pozadavky_na_kontrolu.md).
+schema_version: 2
+protocol_id: PROSTATE_MOU
+version: "1.0"
+mode: CLINICAL
+display_name: "MRI prostaty — MOÚ protokol"
+author: "MOÚ / MR.buddy"
+source: "pozadavky_na_kontrolu.md"
+approved_by: "MOÚ clinical specification"
+
+sequences:
+  - sequence_id: LOCALIZER
+    display_name: "Localizer"
+    order: 1
+    required: false
+    group: OTHER
+    role: localizer
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: localizer, case_sensitive: false } }
+
+  - sequence_id: PROSTATE_SEGM
+    display_name: "AA_Prostate_Segm"
+    order: 2
+    required: false
+    group: OTHER
+    role: prostate_seg
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm } }
+
+  - sequence_id: PROSTATE_SEGM_SEG
+    display_name: "AA_Prostate_Segm_SEG"
+    order: 3
+    required: false
+    group: OTHER
+    role: prostate_seg
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm_SEG } }
+
+  - sequence_id: PROSTATE_SEGM_MASK
+    display_name: "AA_Prostate_Segm_MASK"
+    order: 4
+    required: false
+    group: OTHER
+    role: prostate_seg_mask
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm_MASK } }
+
+  - sequence_id: PROSTATE_SEGM_MPR_SAG
+    display_name: "AA_Prostate_Segm_MPR_sag"
+    order: 5
+    required: false
+    group: OTHER
+    role: prostate_seg
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm_MPR_sag } }
+
+  - sequence_id: PROSTATE_SEGM_MPR_COR
+    display_name: "AA_Prostate_Segm_MPR_cor"
+    order: 6
+    required: false
+    group: OTHER
+    role: prostate_seg
+    image_required: false
+    completion: { mode: geometric_stack, min_members: 1 }
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: exact, value: AA_Prostate_Segm_MPR_cor } }
+
+  - sequence_id: T2_SAG
+    display_name: "T2W Sagitální (t2_tse_sag_DRB)"
+    order: 9
+    required: false
+    group: T2W
+    role: t2w_sag
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2_tse_sag, case_sensitive: false } }
+    parameters: &t2_params
+      - rule_id: t2_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 3.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat T2W s tloušťkou řezu ≤ 3 mm"
+      - rule_id: t2_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy (Slice Gap) na 0 mm"
+      - rule_id: t2_fov
+        field: FieldOfView
+        unit: mm
+        components: all
+        constraint: { kind: range, minimum: 120.0, maximum: 200.0 }
+        severity: critical
+        on_missing: warning
+        action: "Upravit FOV T2W sekvence do rozsahu 120–200 mm"
+      - rule_id: t2_phase_res
+        field: PhaseResolution
+        unit: mm
+        constraint: { kind: range, minimum: 0.01, maximum: 0.7 }
+        severity: critical
+        on_missing: warning
+        action: "Zlepšit fázové rozlišení T2W na ≤ 0,7 mm"
+      - rule_id: t2_freq_res
+        field: FrequencyResolution
+        unit: mm
+        constraint: { kind: range, minimum: 0.01, maximum: 0.7 }
+        severity: critical
+        on_missing: warning
+        action: "Zlepšit frekvenční rozlišení T2W na ≤ 0,7 mm"
+
+  - sequence_id: T2_COR
+    display_name: "T2W Koronální (t2_tse_cor)"
+    order: 10
+    required: false
+    group: T2W
+    role: t2w_cor
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2_tse_cor, case_sensitive: false } }
+    parameters: *t2_params
+
+  - sequence_id: T2_TRA
+    display_name: "T2W Axiální (t2_tse_tra)"
+    order: 11
+    required: true
+    missing_severity: warning
+    group: T2W
+    role: t2w_tra
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: t2_tse_tra, case_sensitive: false } }
+    parameters: *t2_params
+
+  - sequence_id: DWI_LOW_B
+    display_name: "DWI Low b-value (*ez_b50t)"
+    order: 12
+    required: true
+    group: DWI
+    role: dwi_low_b
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: TRACEW, case_sensitive: false } }
+      - { field: SequenceName, constraint: { kind: contains, value: b50, case_sensitive: false } }
+    parameters:
+      - rule_id: dwi_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 4.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat DWI s tloušťkou řezu ≤ 4 mm"
+      - rule_id: dwi_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy DWI na 0 mm"
+      - rule_id: dwi_b_low
+        field: DiffusionBValue
+        unit: s/mm2
+        constraint: { kind: range, minimum: 0.0, maximum: 100.0 }
+        severity: critical
+        on_missing: critical
+        action: "Ověřit skutečnou b-value (0–100 s/mm²) z privátních tagů"
+
+  - sequence_id: DWI_INT_B
+    display_name: "DWI Intermediate b-value (*ez_b800t)"
+    order: 13
+    required: true
+    group: DWI
+    role: dwi_intermediate_b
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: TRACEW, case_sensitive: false } }
+      - { field: SequenceName, constraint: { kind: contains, value: b800, case_sensitive: false } }
+    parameters:
+      - rule_id: dwi_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 4.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat DWI s tloušťkou řezu ≤ 4 mm"
+      - rule_id: dwi_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy DWI na 0 mm"
+      - rule_id: dwi_b_int
+        field: DiffusionBValue
+        unit: s/mm2
+        constraint: { kind: range, minimum: 800.0, maximum: 1000.0 }
+        severity: critical
+        on_missing: critical
+        action: "Ověřit skutečnou b-value (800–1000 s/mm²) z privátních tagů"
+
+  - sequence_id: DWI_ADC
+    display_name: "DWI ADC mapa (*ez_b50_800)"
+    order: 14
+    required: true
+    group: DWI
+    role: dwi_adc
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: _ADC, case_sensitive: false } }
+    parameters:
+      - rule_id: dwi_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 4.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat DWI ADC s tloušťkou řezu ≤ 4 mm"
+      - rule_id: dwi_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy DWI ADC na 0 mm"
+
+  - sequence_id: DWI_HIGH_B
+    display_name: "DWI High b-value (*ez_calc_b2000)"
+    order: 15
+    required: true
+    group: DWI
+    role: dwi_high_b
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: CALC_BVAL, case_sensitive: false } }
+    parameters:
+      - rule_id: dwi_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 4.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat DWI high-b s tloušťkou řezu ≤ 4 mm"
+      - rule_id: dwi_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy DWI high-b na 0 mm"
+      - rule_id: dwi_b_high
+        field: DiffusionBValue
+        unit: s/mm2
+        constraint: { kind: range, minimum: 1400.0, maximum: 5000.0 }
+        severity: critical
+        on_missing: critical
+        action: "Ověřit skutečnou high b-value (≥ 1400 s/mm²) z privátních tagů"
+
+  - sequence_id: DWI_RESOLVE
+    display_name: "DWI RESOLVE (náhradní)"
+    order: 16
+    required: false
+    group: DWI
+    role: dwi_resolve
+    image_required: true
+    completion: { mode: geometric_stack, min_members: 5 }
+    geometry_severity: critical
+    identifiers:
+      - { field: Modality, constraint: { kind: exact, value: MR } }
+      - { field: ScanningSequence, components: any, constraint: { kind: contains, value: EP } }
+      - { field: SeriesDescription, constraint: { kind: contains, value: resolve, case_sensitive: false } }
+    parameters:
+      - rule_id: resolve_slice_thickness
+        field: SliceThickness
+        unit: mm
+        constraint: { kind: range, minimum: 0.5, maximum: 4.0 }
+        severity: critical
+        on_missing: critical
+        action: "Zopakovat RESOLVE s tloušťkou řezu ≤ 4 mm"
+      - rule_id: resolve_slice_gap
+        field: SliceGap
+        unit: mm
+        constraint: { kind: target, target: 0.0, tolerance: 0.05, tolerance_kind: absolute }
+        severity: critical
+        on_missing: warning
+        action: "Nastavit mezeru mezi řezy RESOLVE na 0 mm"
+
+study_rules:
+  min_valid_groups:
+    - rule_id: t2w_min_two_valid
+      group: T2W
+      min_valid_count: 2
+      preferred_sequence_id: T2_TRA
+      missing_preferred_severity: warning
+      severity: critical
+      action: "Zajistit alespoň dvě validní T2W sekvence (preferovaně včetně T2 TRA)"
+  fallback_groups:
+    - rule_id: dwi_resolve_fallback
+      primary_sequence_ids: [DWI_LOW_B, DWI_INT_B, DWI_ADC, DWI_HIGH_B]
+      fallback_sequence_ids: [DWI_RESOLVE]
+      fallback_used_severity: warning
+      severity: critical
+      action: "Při nekompletní nebo nekvalitní DWI provést a zkontrolovat sekvenci RESOLVE"
+  geometry_alignments:
+    - rule_id: dwi_t2_tra_alignment
+      reference_sequence_id: T2_TRA
+      target_sequence_ids: [DWI_LOW_B, DWI_INT_B, DWI_ADC, DWI_HIGH_B]
+      position_tolerance_mm: 1.0
+      orientation_tolerance: 0.002
+      spacing_tolerance_mm: 0.1
+      severity: critical
+      action: "DWI řezy nejsou zarovnány s T2 TRA — zkontrolovat polohu a orientaci řezů"
+  coverage_checks:
+    - rule_id: prostate_segm_coverage
+      segmentation_sequence_id: PROSTATE_SEGM_MASK
+      target_sequence_ids: [T2_TRA, DWI_LOW_B]
+      margin_mm: 3.5
+      severity: warning
+      action: "Ověřit anatomické pokrytí oblasti prostaty podle AA_Prostate_Segm"

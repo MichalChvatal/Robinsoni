@@ -35,6 +35,8 @@ FIELDS: dict[str, FieldSpec] = {
             "ManufacturerModelName",
             "TimezoneOffsetFromUTC",
             "StudyDescription",
+            "OperatorsName",
+            "PatientAge",
         )
     },
     **{
@@ -57,9 +59,19 @@ FIELDS: dict[str, FieldSpec] = {
         )
     },
     **{name: F("float", "ms") for name in ("RepetitionTime", "EchoTime", "InversionTime")},
-    **{name: F("float", "mm") for name in ("SliceThickness", "SpacingBetweenSlices")},
+    **{
+        name: F("float", "mm")
+        for name in (
+            "SliceThickness",
+            "SpacingBetweenSlices",
+            "SliceGap",
+            "PhaseResolution",
+            "FrequencyResolution",
+        )
+    },
     "FlipAngle": F("float", "deg"),
     "PixelSpacing": F("float", "mm", 2),
+    "FieldOfView": F("float", "mm", 2),
     "ImagePositionPatient": F("float", "mm", 3),
     "ImageOrientationPatient": F("float", count=6),
     "DiffusionGradientOrientation": F("float", count=3),
@@ -67,6 +79,9 @@ FIELDS: dict[str, FieldSpec] = {
     "MagneticFieldStrength": F("float", "T"),
     "PixelBandwidth": F("float", "Hz/pixel"),
     "NumberOfAverages": F("float"),
+    "PatientWeight": F("float", "kg"),
+    "PatientSize": F("float", "m"),
+    "PatientBMI": F("float", "kg/m2"),
     "AcquisitionMatrix": F("int", count=4),
     **{
         name: F("int")
@@ -137,8 +152,91 @@ def evidence_at(
     return Evidence(path + parts[-1], f"{int(element.tag):08X}", raw, unit)
 
 
+def _derived_evidence(path: str, values: tuple[float, ...], unit: str | None) -> Evidence:
+    return Evidence(
+        path=f"derived:{path}",
+        tag="00000000",
+        raw=tuple(f"{value:.6f}".rstrip("0").rstrip(".") or "0" for value in values),
+        unit=unit,
+        parser="derived/1",
+    )
+
+
+def _populate_derived_fields(fields: dict[str, MetadataValue]) -> None:
+    def _known(name: str):
+        item = fields.get(name)
+        return item.value if item and item.state == "known" else None
+
+    rows, cols = _known("Rows"), _known("Columns")
+    spacing = _known("PixelSpacing")
+    if (
+        isinstance(rows, int)
+        and isinstance(cols, int)
+        and rows > 0
+        and cols > 0
+        and isinstance(spacing, tuple)
+        and len(spacing) == 2
+        and all(value > 0 for value in spacing)
+    ):
+        fov_row = round(rows * spacing[0], 4)
+        fov_col = round(cols * spacing[1], 4)
+        fields["FieldOfView"] = normalize(
+            FIELDS["FieldOfView"],
+            (_derived_evidence("Rows*PixelSpacing[0],Columns*PixelSpacing[1]", (fov_row, fov_col), "mm"),),
+        )
+        direction = _known("InPlanePhaseEncodingDirection")
+        acq_matrix = _known("AcquisitionMatrix")
+        if direction in {"ROW", "COL"}:
+            phase_steps = None
+            freq_steps = None
+            src_suffix = "PixelSpacing+InPlanePhaseEncodingDirection"
+            if isinstance(acq_matrix, tuple) and len(acq_matrix) == 4:
+                if direction == "ROW" and acq_matrix[2] > 0 and acq_matrix[1] > 0:
+                    phase_steps, freq_steps = acq_matrix[2], acq_matrix[1]
+                    src_suffix = "FOV/AcquisitionMatrix"
+                elif direction == "COL" and acq_matrix[3] > 0 and acq_matrix[0] > 0:
+                    phase_steps, freq_steps = acq_matrix[3], acq_matrix[0]
+                    src_suffix = "FOV/AcquisitionMatrix"
+            if direction == "ROW":
+                phase_res = fov_row / phase_steps if phase_steps else spacing[0]
+                freq_res = fov_col / freq_steps if freq_steps else spacing[1]
+            else:
+                phase_res = fov_col / phase_steps if phase_steps else spacing[1]
+                freq_res = fov_row / freq_steps if freq_steps else spacing[0]
+            fields["PhaseResolution"] = normalize(
+                FIELDS["PhaseResolution"],
+                (_derived_evidence(src_suffix, (round(phase_res, 6),), "mm"),),
+            )
+            fields["FrequencyResolution"] = normalize(
+                FIELDS["FrequencyResolution"],
+                (_derived_evidence(src_suffix, (round(freq_res, 6),), "mm"),),
+            )
+
+    thickness = _known("SliceThickness")
+    between = _known("SpacingBetweenSlices")
+    if isinstance(thickness, float) and isinstance(between, float):
+        gap = round(between - thickness, 6)
+        fields["SliceGap"] = normalize(
+            FIELDS["SliceGap"],
+            (_derived_evidence("SpacingBetweenSlices-SliceThickness", (gap,), "mm"),),
+        )
+
+    weight = _known("PatientWeight")
+    size = _known("PatientSize")
+    if isinstance(weight, float) and isinstance(size, float) and weight > 0 and size > 0:
+        bmi = round(weight / (size * size), 2)
+        fields["PatientBMI"] = normalize(
+            FIELDS["PatientBMI"],
+            (_derived_evidence("PatientWeight/(PatientSize^2)", (bmi,), "kg/m2"),),
+        )
+
+
 def parse_dataset(
-    dataset: Dataset, *, include_identifiers: bool = False, adapter: VendorAdapter | None = None
+    dataset: Dataset,
+    *,
+    include_identifiers: bool = False,
+    adapter: VendorAdapter | None = None,
+    b_value_tags: tuple[str, ...] | None = None,
 ) -> tuple[MetadataRecord, ...]:
     """Return one record per frame without touching pixel_array.
 
@@ -161,9 +259,10 @@ def parse_dataset(
     if any(not isinstance(item, Dataset) for item in (*per_frame, *shared)):
         raise MetadataStructureError("Invalid functional group item")
     manufacturer = str(getattr(dataset, "Manufacturer", ""))
-    adapter = adapter or adapter_for(manufacturer)
+    tags = tuple(b_value_tags) if b_value_tags else ()
+    adapter = adapter or adapter_for(manufacturer, b_value_tags=tags)
     # A caller cannot use a Siemens binding against a differently identified vendor.
-    detected = adapter_for(manufacturer)
+    detected = adapter_for(manufacturer, b_value_tags=tags)
     if adapter.name != "generic" and adapter.name != detected.name:
         raise MetadataStructureError("Vendor adapter does not match Manufacturer")
     private = adapter.extract(dataset)
@@ -175,6 +274,9 @@ def parse_dataset(
         for keyword, spec in FIELDS.items():
             if keyword in IDENTIFIERS and not include_identifiers:
                 fields[keyword] = MetadataValue(None, spec.unit, "missing", reason="suppressed")
+                continue
+            if keyword in {"FieldOfView", "SliceGap", "PhaseResolution", "FrequencyResolution", "PatientBMI"}:
+                fields[keyword] = MetadataValue(None, spec.unit, "missing", reason="not_available")
                 continue
             sources = []
             macro_path = FUNCTIONAL_PATHS.get(keyword)
@@ -199,6 +301,7 @@ def parse_dataset(
                 sources.append(candidate)
             sources.extend(private.get(keyword, ()))
             fields[keyword] = normalize(spec, tuple(sources))
+        _populate_derived_fields(fields)
         records.append(
             MetadataRecord(
                 fields, frame_index=frame if per_frame else None, vendor_parser=adapter.identifier
@@ -207,8 +310,15 @@ def parse_dataset(
     return tuple(records)
 
 
-def parse_file(path: Path, *, include_identifiers: bool = False) -> tuple[MetadataRecord, ...]:
+def parse_file(
+    path: Path,
+    *,
+    include_identifiers: bool = False,
+    b_value_tags: tuple[str, ...] | None = None,
+) -> tuple[MetadataRecord, ...]:
     """Load a file header only, leaving stored pixel data unallocated and undecoded."""
     return parse_dataset(
-        dcmread(path, stop_before_pixels=True), include_identifiers=include_identifiers
+        dcmread(path, stop_before_pixels=True),
+        include_identifiers=include_identifiers,
+        b_value_tags=b_value_tags,
     )

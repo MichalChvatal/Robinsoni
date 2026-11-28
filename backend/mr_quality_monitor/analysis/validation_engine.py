@@ -10,9 +10,11 @@ from pydantic import Field
 
 from ..protocols.manager import ProtocolSnapshot
 from ..protocols.models import FrozenModel
+from .image_quality import ArtifactFinding
 from .metadata_normalizer import Value
 from .sequence_identifier import Identification, identify
 from .series_aggregator import AcquisitionGroup
+from .study_rules import StudyCheckResult, evaluate_study_rules
 from .validation_rules import matches
 
 Status = Literal["GREEN", "ORANGE", "RED", "GRAY"]
@@ -90,12 +92,13 @@ def evaluate(
     snapshot: ProtocolSnapshot,
     *,
     completion: CompletionEvidence | None = None,
+    image_findings: tuple[ArtifactFinding, ...] | None = None,
     evaluated_at: datetime | None = None,
 ) -> Evaluation:
     """Validate all members; never treat one good image as representative of the series.
 
-    group.complete is intentionally not a trusted signal. Image assessment is not
-    implemented and stays GRAY; only an explicit metadata-only DEMO may ignore it.
+    group.complete is intentionally not a trusted signal. When image_findings is not
+    supplied, image assessment stays GRAY and only metadata-only DEMO may ignore it.
     """
     if not group.members:
         raise ValueError("Cannot evaluate an empty acquisition")
@@ -109,13 +112,16 @@ def evaluate(
         ),
         "geometry_issues": sorted(group.issues),
         "completion": completion.model_dump() if completion else None,
+        "image_findings": [asdict(item) for item in (image_findings or ())],
     }
     input_hash = hashlib.sha256(
         json.dumps(content, sort_keys=True, allow_nan=False).encode()
     ).hexdigest()
     checks = []
     completeness: Status = "GRAY"
+    image_status: Status = "GRAY"
     image_required = True
+    clinical_quality_evaluated = False
     completion_details = {
         "actual_members": len(group.members),
         "policy": None,
@@ -180,7 +186,26 @@ def evaluate(
                     action="Review geometry findings",
                 )
             )
-        metadata = aggregate(tuple(check.status for check in checks))
+        if image_findings is not None and image_required:
+            for finding in image_findings:
+                checks.append(
+                    CheckResult(
+                        f"image:{finding.detector_id}",
+                        finding.artifact_type,
+                        finding.status,
+                        finding.reason,
+                        finding.score,
+                        finding.threshold,
+                        paths=tuple(f"slice[{idx}]" for idx in finding.affected_slices),
+                        action=finding.action if finding.status != "GREEN" else "",
+                    )
+                )
+            if image_findings:
+                image_status = aggregate(tuple(item.status for item in image_findings))
+                clinical_quality_evaluated = protocol.mode == "CLINICAL" or image_status != "GRAY"
+        metadata = aggregate(
+            tuple(check.status for check in checks if not check.rule_id.startswith("image:"))
+        )
         if definition.completion.mode == "expected_count":
             identities = {
                 (record.known("SOPInstanceUID"), record.frame_index) for record in group.members
@@ -193,24 +218,45 @@ def evaluate(
                 completeness = "GREEN"
             else:
                 reasons.append("completion_count_not_met")
+        elif definition.completion.mode == "geometric_stack":
+            blocking_geo = {
+                "incomplete_geometry",
+                "invalid_geometry",
+                "repeated_slice_position",
+                "irregular_slice_spacing",
+                "declared_spacing_mismatch",
+            }
+            if len(group.members) < (definition.completion.min_members or 1):
+                reasons.append("completion_count_not_met")
+            elif any(issue in blocking_geo for issue in group.issues):
+                reasons.append("completion_geometry_incomplete")
+            else:
+                completeness = "GREEN"
         elif completion is not None:
             completeness = "GREEN"
         else:
             reasons.append("completion_not_confirmed")
         reasons.extend(check.reason for check in checks if check.status != "GREEN")
-    reasons.append("image_not_evaluated" if image_required else "image_not_requested_in_demo")
+    if not image_required:
+        reasons.append("image_not_requested_in_demo" if protocol.mode == "DEMO" else "image_not_required")
+    elif image_status == "GRAY":
+        reasons.append("image_not_evaluated")
     overall = aggregate(
-        (metadata, completeness, "GRAY") if image_required else (metadata, completeness)
+        (metadata, completeness, image_status) if image_required else (metadata, completeness)
     )
     if overall == "GREEN":
-        reasons.append("demo_metadata_requirements_passed")
+        reasons.append(
+            "clinical_requirements_passed"
+            if protocol.mode == "CLINICAL"
+            else "demo_metadata_requirements_passed"
+        )
     return Evaluation(
         group.key,
         identification.sequence_id,
         overall,
         metadata,
         completeness,
-        "GRAY",
+        image_status,
         image_required,
         tuple(sorted(set(reasons))),
         tuple(checks),
@@ -220,6 +266,8 @@ def evaluate(
         snapshot.sha256,
         input_hash,
         evaluation_time(evaluated_at),
+        mode=protocol.mode,
+        clinical_quality_evaluated=clinical_quality_evaluated,
         completion_details=completion_details,
     )
 
@@ -244,6 +292,7 @@ class StudyEvaluation:
     evaluated_at: str
     protocol_id: str
     protocol_version: str
+    study_checks: tuple[StudyCheckResult, ...] = ()
     engine_version: str = ENGINE_VERSION
     mode: str = "DEMO"
     clinical_quality_evaluated: bool = False
@@ -262,6 +311,8 @@ def evaluate_study(
     *,
     completions: dict[str, CompletionEvidence] | None = None,
     finalization: CompletionEvidence | None = None,
+    image_findings: dict[str, tuple[ArtifactFinding, ...]] | None = None,
+    seg_bounds_mm: dict[str, tuple[float, float]] | None = None,
     evaluated_at: datetime | None = None,
 ) -> StudyEvaluation:
     """Check presence of required sequences; never silently select the best repeat.
@@ -285,12 +336,32 @@ def evaluate_study(
     completions = completions or {}
     if set(completions) - {group.key for group in groups}:
         raise ValueError("Completion evidence references an unknown acquisition")
+    image_findings = image_findings or {}
     time = evaluation_time(evaluated_at)
     timestamp = datetime.fromisoformat(time)
     results = tuple(
-        evaluate(group, snapshot, completion=completions.get(group.key), evaluated_at=timestamp)
+        evaluate(
+            group,
+            snapshot,
+            completion=completions.get(group.key),
+            image_findings=image_findings.get(group.key),
+            evaluated_at=timestamp,
+        )
         for group in sorted(groups, key=lambda item: item.key)
     )
+    study_checks = evaluate_study_rules(
+        snapshot.protocol,
+        results,
+        groups,
+        finalized=finalization is not None,
+        seg_bounds_mm=seg_bounds_mm,
+    )
+    fallback_covered = {
+        sid
+        for check in study_checks
+        if check.kind == "fallback_group" and check.status == "ORANGE"
+        for sid in check.details.get("primary_missing", ()) + check.details.get("primary_bad", ())
+    }
     presence = []
     for sequence in sorted(snapshot.protocol.sequences, key=lambda item: item.order):
         matched = tuple(item for item in results if item.sequence_id == sequence.sequence_id)
@@ -312,6 +383,8 @@ def evaluate_study(
             keys = tuple(item.group_key for item in uncertain)
         elif not sequence.required:
             status, reason, keys = "GRAY", "optional_sequence_absent", ()
+        elif sequence.sequence_id in fallback_covered:
+            status, reason, keys = "ORANGE", "fallback_sequence_used", ()
         elif finalization is None:
             status, reason, keys = "GRAY", "required_sequence_pending", ()
         else:
@@ -323,6 +396,7 @@ def evaluate_study(
     overall = aggregate(
         tuple(item.status for item in results)
         + tuple(item.status for item in presence if item.required)
+        + tuple(check.status for check in study_checks)
         + (("GRAY",) if finalization is None else ())
     )
     return StudyEvaluation(
@@ -335,4 +409,7 @@ def evaluate_study(
         time,
         protocol_id=snapshot.protocol.protocol_id,
         protocol_version=snapshot.protocol.version,
+        study_checks=study_checks,
+        mode=snapshot.protocol.mode,
+        clinical_quality_evaluated=any(item.clinical_quality_evaluated for item in results),
     )

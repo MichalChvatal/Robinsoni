@@ -117,14 +117,65 @@ class ParameterRule(Predicate):
 
 
 class CompletionRule(FrozenModel):
-    mode: Literal["explicit", "expected_count"] = "explicit"
+    mode: Literal["explicit", "expected_count", "geometric_stack"] = "explicit"
     expected_members: int | None = Field(default=None, ge=1, strict=True)
+    min_members: int | None = Field(default=None, ge=1, strict=True)
 
     @model_validator(mode="after")
     def valid_expected_count(self):
         if (self.mode == "expected_count") != (self.expected_members is not None):
             raise ValueError("expected_members is required only for expected_count mode")
+        if self.mode == "geometric_stack" and self.min_members is None:
+            raise ValueError("min_members is required for geometric_stack mode")
+        if self.mode != "geometric_stack" and self.min_members is not None:
+            raise ValueError("min_members is allowed only for geometric_stack mode")
         return self
+
+
+class MinValidGroupRule(FrozenModel):
+    rule_id: Identifier
+    group: str = Field(min_length=1)
+    min_valid_count: int = Field(ge=1, strict=True)
+    preferred_sequence_id: Identifier | None = None
+    missing_preferred_severity: Literal["warning", "critical"] = "warning"
+    severity: Literal["warning", "critical"] = "critical"
+    action: str = "Verify required sequences in group"
+
+
+class FallbackGroupRule(FrozenModel):
+    rule_id: Identifier
+    primary_sequence_ids: tuple[Identifier, ...] = Field(min_length=1)
+    fallback_sequence_ids: tuple[Identifier, ...] = Field(min_length=1)
+    fallback_used_severity: Literal["warning", "critical"] = "warning"
+    severity: Literal["warning", "critical"] = "critical"
+    action: str = "Perform fallback RESOLVE acquisition"
+
+
+class GeometryAlignmentRule(FrozenModel):
+    rule_id: Identifier
+    reference_sequence_id: Identifier
+    target_sequence_ids: tuple[Identifier, ...] = Field(min_length=1)
+    position_tolerance_mm: float = Field(default=1.0, ge=0, strict=True)
+    orientation_tolerance: float = Field(default=1e-3, ge=0, strict=True)
+    spacing_tolerance_mm: float = Field(default=0.1, ge=0, strict=True)
+    severity: Literal["warning", "critical"] = "critical"
+    action: str = "Align DWI slices to T2 TRA geometry"
+
+
+class CoverageCheckRule(FrozenModel):
+    rule_id: Identifier
+    segmentation_sequence_id: Identifier
+    target_sequence_ids: tuple[Identifier, ...] = Field(min_length=1)
+    margin_mm: float = Field(default=0.0, ge=0, strict=True)
+    severity: Literal["warning", "critical"] = "warning"
+    action: str = "Verify prostate anatomical coverage"
+
+
+class StudyRules(FrozenModel):
+    min_valid_groups: tuple[MinValidGroupRule, ...] = ()
+    fallback_groups: tuple[FallbackGroupRule, ...] = ()
+    geometry_alignments: tuple[GeometryAlignmentRule, ...] = ()
+    coverage_checks: tuple[CoverageCheckRule, ...] = ()
 
 
 class SequenceDefinition(FrozenModel):
@@ -133,10 +184,13 @@ class SequenceDefinition(FrozenModel):
     order: int = Field(ge=1, strict=True)
     required: StrictBool = True
     missing_severity: Literal["critical", "warning"] = "critical"
+    group: str | None = None
+    role: str | None = None
     identifiers: tuple[Predicate, ...] = Field(min_length=2)
     parameters: tuple[ParameterRule, ...] = ()
     completion: CompletionRule = CompletionRule()
     image_required: StrictBool = True
+    image_checks: tuple[str, ...] = ()
     geometry_severity: Literal["unknown", "critical", "warning"] = "unknown"
 
     @model_validator(mode="after")
@@ -152,17 +206,25 @@ class SequenceDefinition(FrozenModel):
 
 
 class Protocol(FrozenModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     protocol_id: Identifier
     version: Identifier
-    mode: Literal["DEMO"]  # Approved clinical protocols require a later explicit schema extension.
+    mode: Literal["DEMO", "CLINICAL"]
     display_name: str = Field(min_length=1)
     author: str = Field(min_length=1)
     source: str = Field(min_length=1)
+    approved_by: str | None = None
     sequences: tuple[SequenceDefinition, ...] = Field(min_length=1)
+    study_rules: StudyRules | None = None
 
     @model_validator(mode="after")
     def unique_definitions(self):
+        if self.schema_version == 1 and self.mode != "DEMO":
+            raise ValueError("schema_version 1 supports only DEMO mode")
+        if self.schema_version == 1 and (self.approved_by is not None or self.study_rules is not None):
+            raise ValueError("Clinical fields require schema_version 2")
+        if self.mode == "CLINICAL" and not (self.approved_by and self.approved_by.strip()):
+            raise ValueError("CLINICAL protocol requires approved_by")
         if len({item.sequence_id for item in self.sequences}) != len(self.sequences):
             raise ValueError("Duplicate sequence IDs")
         if len({item.order for item in self.sequences}) != len(self.sequences):

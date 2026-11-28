@@ -55,6 +55,18 @@ DIMENSIONS = (
     "DiffusionGradientOrientation",
     "AcquisitionNumber",
 )
+# Only these fields must be valid; conflicting/invalid optional fields get None as group key.
+REQUIRED_DIMENSIONS = frozenset(
+    {
+        "StudyInstanceUID",
+        "SeriesInstanceUID",
+        "SOPClassUID",
+        "Rows",
+        "Columns",
+        "PixelSpacing",
+        "ImageOrientationPatient",
+    }
+)
 REQUIRED_GEOMETRY = (
     "StudyInstanceUID",
     "SeriesInstanceUID",
@@ -94,8 +106,12 @@ def group_acquisitions(
         projection = None
         if any(record.known(keyword) is None for keyword in REQUIRED_GEOMETRY):
             issues.add("incomplete_geometry")
+        # Only required grouping dimensions must be unambiguous; optional dimensions that are
+        # conflicting/invalid are treated as unknown (None) so they don't isolate the record.
         if any(
-            record.fields[keyword].state in {"invalid", "conflicting"} for keyword in DIMENSIONS
+            record.fields[keyword].state in {"invalid", "conflicting"}
+            for keyword in REQUIRED_DIMENSIONS
+            if keyword in record.fields
         ):
             issues.add("uncertain_dimension")
         if not issues:
@@ -110,7 +126,17 @@ def group_acquisitions(
                 )
             except (ValueError, TypeError):
                 issues.add("invalid_geometry")
-        dimensions = {keyword: record.known(keyword) for keyword in DIMENSIONS}
+        # For optional dimensions that are conflicting/invalid, use None as the grouping key so
+        # all slices with conflicting optional fields still group together per series/orientation.
+        dimensions = {
+            keyword: (
+                record.known(keyword)
+                if keyword in REQUIRED_DIMENSIONS
+                or record.fields[keyword].state not in {"invalid", "conflicting"}
+                else None
+            )
+            for keyword in DIMENSIONS
+        }
         if issues:
             dimensions["isolated_record"] = (identity[0], identity[1], index)
         key = hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()

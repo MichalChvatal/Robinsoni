@@ -12,6 +12,7 @@ from sqlalchemy import func, select, update
 
 from ..analysis.metadata_normalizer import MetadataRecord
 from ..analysis.series_aggregator import group_acquisitions
+from ..config import ReceiverConfig
 from ..database.models import AnalysisJob, DicomInstance, Study, SystemEvent
 from ..database.repository import HistoryRepository
 from ..dicom.metadata_parser import parse_file
@@ -28,13 +29,14 @@ class InvalidAnalysisInput(ValueError):
 
 
 @contextmanager
-def open_worker(root: Path, protocol: ProtocolSnapshot):
+def open_worker(root: Path, protocol: ProtocolSnapshot, config: ReceiverConfig | None = None):
     lock = ProcessLock(root, "analysis")
     lock.acquire()
     try:
         storage = Storage(root)
         try:
-            yield AnalysisWorker(storage, protocol)
+            b_value_tags = config.b_value_tag_order if config else ()
+            yield AnalysisWorker(storage, protocol, b_value_tags=b_value_tags)
         finally:
             storage.close()
     finally:
@@ -42,11 +44,18 @@ def open_worker(root: Path, protocol: ProtocolSnapshot):
 
 
 class AnalysisWorker:
-    def __init__(self, storage: Storage, protocol: ProtocolSnapshot):
+    def __init__(
+        self,
+        storage: Storage,
+        protocol: ProtocolSnapshot,
+        *,
+        b_value_tags: tuple[str, ...] = (),
+    ):
         self.storage = storage
         self.sessions = storage.sessions
         self.history = HistoryRepository(self.sessions)
         self.protocol = protocol
+        self.b_value_tags = b_value_tags
 
     def retry_failed(self) -> None:
         """Requeue rejected objects after their local storage has been repaired."""
@@ -128,7 +137,7 @@ class AnalysisWorker:
         path = self.storage.path(instance.id)
         if instance.integrity_state != "stored" or checksum(path) != instance.checksum:
             raise InvalidAnalysisInput("Stored object failed integrity check")
-        records = parse_file(path)
+        records = parse_file(path, b_value_tags=self.b_value_tags or None)
         expected = (
             instance.sop_uid,
             instance.study_uid,
@@ -155,3 +164,4 @@ class AnalysisWorker:
             if failure_id is not None:
                 session.add(SystemEvent(code="analysis_input_failed", correlation_id=failure_id))
                 LOGGER.warning("analysis_input_failed")
+
